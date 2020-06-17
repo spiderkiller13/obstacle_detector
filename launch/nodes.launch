@@ -20,7 +20,9 @@
     <param name="fixed_frame_id"   value="map"/>
     <param name="target_frame_id"   value="robot"/>
   </node-->
-
+ <param name="use_sim_time" value="true"/> 
+  <node name="rosplay" pkg="rosbag" type="play" args=" --clock --loop $(find obstacle_detector)/rosbag/test.bag"/>
+  <node name="laser_find_shelf" pkg="obstacle_detector" type="laser_find_shelf.py" output="screen"/>
   <node name="obstacle_extractor" pkg="obstacle_detector" type="obstacle_extractor_node">
     <param name="active"               value="true"/>
     <param name="use_scan"             value="true"/>
@@ -61,7 +63,7 @@
     <remap from="tracked_obstacles" to="obstacles"/>
   </node>
  
-  <node name="obstacle_publisher" pkg="obstacle_detector" type="obstacle_publisher_node">
+  <!--node name="obstacle_publisher" pkg="obstacle_detector" type="obstacle_publisher_node">
     <param name="active"           value="true"/>
     <param name="reset"            value="false"/>
 
@@ -78,7 +80,7 @@
     <rosparam param="vy_vector">[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
 
     <param name="frame_id"         value="map"/>
-  </node>
+  </node-->
 
 </launch>
 <!-- -->
