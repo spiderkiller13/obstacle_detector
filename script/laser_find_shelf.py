@@ -13,17 +13,17 @@ import pprint
 ##################
 ### Parameters ###
 ##################
-SHEFT_LENGTH_TOLERANCE = 0.1 # Meter
+SHEFT_LENGTH_TOLERANCE = 0.15 # Meter
 ANGLE_TOLERANCE   = 0.04 # RANDIUS
 MAX_CIRCLE_RADIUS = 0.125 # Meter
 
 L = 0.65
-L_diagonal = 0.65 * math.sqrt(2)
-
+L_diagonal = L * math.sqrt(2)
+#----- Global variable --------# 
 marker_sphere = MarkerArray()
 marker_line   = MarkerArray()
 is_need_pub = False 
-
+center = None
 def set_sphere(point , RGB = None  , size = 0.05, id = 0):
     '''
     Set Point at MarkArray 
@@ -136,7 +136,7 @@ def cal_avg_points(c_list):
     return ( x_sum/len(c_list) , y_sum/len(c_list) )
 
 def callback(data):
-    global is_need_pub
+    global is_need_pub, center
     # ---- Get Rid of too large circle -----#
     c_list = []
     for c in data.circles:
@@ -171,9 +171,9 @@ def callback(data):
                     angle = cal_angle(c , e1[1] ,e2[1] )
                     if abs(angle - math.pi/2) < ANGLE_TOLERANCE and c not in coner_dict:
                         #---- Found coner !!! -----#
-                        coner_dict[c] = cal_center(c, e1[1] ,e1[1])
-                        # TODO rviz  
-                        set_sphere( c ,     (0,255,255) , 0.2, ID)
+                        coner_dict[c] = cal_center(c, e1[1] ,e2[1])
+                        # rviz  
+                        set_sphere( c ,     (0,0,255) , 0.1, ID)
                         set_line([c,e1[1]], (255,255,0), 0.02, ID)
                         set_line([c,e2[1]], (255,255,0), 0.02, ID+1)
                         ID += 2
@@ -187,14 +187,10 @@ def callback(data):
             centers.append( coner_dict[i] )
         center = cal_avg_points(centers)
         rospy.loginfo("[Obstacle_detector] Found shelft center : " + str( center ))
-
-    is_need_pub = True 
-
-
-
+        is_need_pub = True 
 
 def main(args):
-    global marker_sphere , marker_line, is_need_pub
+    global marker_sphere , marker_line, is_need_pub, center
     #----- Init node ------#
     # Name of this node, anonymous means name will be auto generated.
     rospy.init_node('laser_find_shelf', anonymous=False)
@@ -207,10 +203,17 @@ def main(args):
     while (not rospy.is_shutdown()):
         if is_need_pub:
             #---- update center of rotations -----# 
+            pub_marker_sphere.publish(MarkerArray())
+            pub_marker_line.publish(MarkerArray())
             pub_marker_sphere.publish(marker_sphere)
-            #---- update lines -----# 
             pub_marker_line.publish(marker_line)
-
+            #---- update center tf -----#
+            br = tf.TransformBroadcaster()
+            br.sendTransform((center[0], center[1], 0),
+                     tf.transformations.quaternion_from_euler(0, 0, 0),
+                     rospy.Time.now(),
+                     "shelf_center_laser",
+                     "map")
             # ---- Reset ------# 
             marker_sphere = MarkerArray()
             marker_line   = MarkerArray()
