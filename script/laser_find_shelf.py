@@ -10,6 +10,7 @@ import tf
 from obstacle_detector.msg import Obstacles
 import math 
 import pprint
+from math import atan2,acos,sqrt,pi,sin,cos
 ##################
 ### Parameters ###
 ##################
@@ -18,7 +19,7 @@ ANGLE_TOLERANCE   = 0.04 # RANDIUS
 MAX_CIRCLE_RADIUS = 0.125 # Meter
 
 L = 0.65
-L_diagonal = L * math.sqrt(2)
+L_diagonal = L * sqrt(2)
 #----- Global variable --------# 
 marker_sphere = MarkerArray()
 marker_line   = MarkerArray()
@@ -98,7 +99,7 @@ def cal_distance(c1,c2):
     '''
     dx = c1[0] - c2[0]
     dy = c1[1] - c2[1]
-    return math.sqrt(dx**2 + dy**2)
+    return sqrt(dx**2 + dy**2)
 
 def cal_angle(c1,c2,c3):
     '''
@@ -111,7 +112,7 @@ def cal_angle(c1,c2,c3):
     a = (c2[0] - c1[0] , c2[1] - c1[1])
     b = (c3[0] - c1[0] , c3[1] - c1[1])
     
-    ans = math.acos( round( (a[0]*b[0] + a[1]*b[1]) / (cal_distance(c1,c2) * cal_distance(c1,c3) ) ,5) )
+    ans = acos( round( (a[0]*b[0] + a[1]*b[1]) / (cal_distance(c1,c2) * cal_distance(c1,c3) ) ,5) )
     #print ( ans )
     #ans = a[0]*b[0] + a[1]*b[1]
     return ans
@@ -135,6 +136,37 @@ def cal_avg_points(c_list):
         y_sum += i[1]
     return ( x_sum/len(c_list) , y_sum/len(c_list) )
 
+def cal_heading(c1,c2,c3,ref):
+    '''
+    Input: 
+        c1 : (x,y) - this is a coner
+        c2 : - Two vertice adjcency to coner
+        c3 : 
+        ref : reg angle, output angle should be as near as possible to ref
+    '''
+    a = (c2[0] - c1[0] , c2[1] - c1[1])
+    b = (c3[0] - c1[0] , c3[1] - c1[1])
+
+    ang1 = find_nearest_angle_to_ref ( math.atan2(a[1], a[0]) , ref)
+    ang2 = find_nearest_angle_to_ref ( math.atan2(b[1], b[0]) , ref)
+    return (ang1+ang2)/2# TODO check this is bad when ang1=pi ang2=-pi
+
+def find_nearest_angle_to_ref(angle ,ref):
+    '''
+    Find nearest angle to ref, posible angle : 
+    [angle , angle+pi/2 + angle +pi + angle + 3*pi/2]
+    '''
+    possible_angles = [angle, angle + (pi/2) , angle+pi, angle + (3*pi/2) ]
+
+    ans = None
+    min_dtheta = float('inf')
+    for i in possible_angles:
+        dtheta = abs ( ( cos(i)*cos(ref) + sin(i)*sin(ref) ) -1 )
+        if dtheta < min_dtheta:
+            min_dtheta = dtheta
+            ans = i
+    return ans
+    # 
 def callback(data):
     global is_need_pub, center
     # ---- Get Rid of too large circle -----#
@@ -159,6 +191,7 @@ def callback(data):
     
     #------ Get conner in adj_list ------# 
     coner_dict = {} # {c1 : center1}
+    heading_list = []
     ID = 0 
     for c in adj_dict:
         if len(adj_dict[c]) <= 1:
@@ -169,10 +202,16 @@ def callback(data):
                 if  abs(e1[0] - L) < SHEFT_LENGTH_TOLERANCE and\
                     abs(e2[0] - L) < SHEFT_LENGTH_TOLERANCE: # Both edge has length L
                     angle = cal_angle(c , e1[1] ,e2[1] )
-                    if abs(angle - math.pi/2) < ANGLE_TOLERANCE and c not in coner_dict:
+                    if abs(angle - pi/2) < ANGLE_TOLERANCE and c not in coner_dict:
                         #---- Found coner !!! -----#
                         coner_dict[c] = cal_center(c, e1[1] ,e2[1])
-                        # rviz  
+                        # heading angle 
+                        if heading_list == []:
+                            heading_list.append( cal_heading(c, e1[1] ,e2[1], None) )
+                        else: 
+                            heading_list.append( cal_heading(c, e1[1] ,e2[1], heading_list[0]) )
+
+                        # rviz
                         set_sphere( c ,     (0,0,255) , 0.1, ID)
                         set_line([c,e1[1]], (255,255,0), 0.02, ID)
                         set_line([c,e2[1]], (255,255,0), 0.02, ID+1)
@@ -183,10 +222,16 @@ def callback(data):
     #------ Get avg center of sheft ----#
     centers = []
     if len(coner_dict) != 0:
+        # Calculate avg heading
+        heading = None
+        for i in heading_list:
+            heading += i
+        heading /= len(heading_list)
+        #Calculate avg center 
         for i in coner_dict:
             centers.append( coner_dict[i] )
         center = cal_avg_points(centers)
-        rospy.loginfo("[Obstacle_detector] Found shelft center : " + str( center ))
+        rospy.loginfo("[Obstacle_detector] Found shelft center : " + str( center ) + ", with heading angle : " + str(heading))
         is_need_pub = True 
 
 def main(args):
