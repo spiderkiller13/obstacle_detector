@@ -3,18 +3,20 @@ import rospy
 import sys
 # ROS msg and libraries
 from nav_msgs.msg import OccupancyGrid, Path # Global map 
-from geometry_msgs.msg import Point, PoseArray, PoseStamped, Pose2D, Pose,PoseWithCovarianceStamped, Quaternion# Global path
+from geometry_msgs.msg import TransformStamped, Point, PoseArray, PoseStamped, Pose2D, Pose,PoseWithCovarianceStamped, Quaternion# Global path
 from visualization_msgs.msg import Marker, MarkerArray # Debug drawing
 from std_msgs.msg import String
 import tf
+import tf2_ros
 from obstacle_detector.msg import Obstacles
 import math 
 import pprint
 from math import atan2,acos,sqrt,pi,sin,cos
+import tf_conversions
 ##################
 ### Parameters ###
 ##################
-SHEFT_LENGTH_TOLERANCE = 0.15 # Meter
+SHEFT_LENGTH_TOLERANCE = 0.13 # Meter
 ANGLE_TOLERANCE   = 0.04 # RANDIUS
 MAX_CIRCLE_RADIUS = 0.125 # Meter
 
@@ -25,6 +27,8 @@ marker_sphere = MarkerArray()
 marker_line   = MarkerArray()
 is_need_pub = False 
 center = None
+heading = None
+output_angle = 0
 def set_sphere(point , RGB = None  , size = 0.05, id = 0):
     '''
     Set Point at MarkArray 
@@ -146,17 +150,20 @@ def cal_heading(c1,c2,c3,ref):
     '''
     a = (c2[0] - c1[0] , c2[1] - c1[1])
     b = (c3[0] - c1[0] , c3[1] - c1[1])
-
-    ang1 = find_nearest_angle_to_ref ( math.atan2(a[1], a[0]) , ref)
-    ang2 = find_nearest_angle_to_ref ( math.atan2(b[1], b[0]) , ref)
-    return (ang1+ang2)/2# TODO check this is bad when ang1=pi ang2=-pi
+    if ref != None:
+        ang1 = find_nearest_angle_to_ref ( atan2(a[1], a[0]) , ref)
+        ang2 = find_nearest_angle_to_ref ( atan2(b[1], b[0]) , ref)
+    else:
+        ang1 = atan2(a[1], a[0])
+        ang2 = find_nearest_angle_to_ref ( atan2(b[1], b[0]) , ang1)
+    return [ang1,ang2]
 
 def find_nearest_angle_to_ref(angle ,ref):
     '''
     Find nearest angle to ref, posible angle : 
     [angle , angle+pi/2 + angle +pi + angle + 3*pi/2]
     '''
-    possible_angles = [angle, angle + (pi/2) , angle+pi, angle + (3*pi/2) ]
+    possible_angles = [angle, angle+(pi/2) , angle+pi, angle+(3*pi/2) ]
 
     ans = None
     min_dtheta = float('inf')
@@ -168,7 +175,7 @@ def find_nearest_angle_to_ref(angle ,ref):
     return ans
     # 
 def callback(data):
-    global is_need_pub, center
+    global is_need_pub, center, heading
     # ---- Get Rid of too large circle -----#
     c_list = []
     for c in data.circles:
@@ -207,9 +214,9 @@ def callback(data):
                         coner_dict[c] = cal_center(c, e1[1] ,e2[1])
                         # heading angle 
                         if heading_list == []:
-                            heading_list.append( cal_heading(c, e1[1] ,e2[1], None) )
+                            heading_list.extend( cal_heading(c, e1[1] ,e2[1], None) )
                         else: 
-                            heading_list.append( cal_heading(c, e1[1] ,e2[1], heading_list[0]) )
+                            heading_list.extend( cal_heading(c, e1[1] ,e2[1], heading_list[0]) )
 
                         # rviz
                         set_sphere( c ,     (0,0,255) , 0.1, ID)
@@ -217,16 +224,17 @@ def callback(data):
                         set_line([c,e2[1]], (255,255,0), 0.02, ID+1)
                         ID += 2
 
-    # print (coner_dict)
-
     #------ Get avg center of sheft ----#
     centers = []
     if len(coner_dict) != 0:
         # Calculate avg heading
-        heading = None
+        heading = [0,0]
         for i in heading_list:
-            heading += i
-        heading /= len(heading_list)
+            heading[0] += cos(i)
+            heading[1] += sin(i)
+        heading[0] /= len(heading_list)
+        heading[1] /= len(heading_list)
+        heading = atan2(heading[1],heading[0])
         #Calculate avg center 
         for i in coner_dict:
             centers.append( coner_dict[i] )
@@ -235,33 +243,62 @@ def callback(data):
         is_need_pub = True 
 
 def main(args):
-    global marker_sphere , marker_line, is_need_pub, center
+    global marker_sphere , marker_line, is_need_pub, center, heading, output_angle
     #----- Init node ------#
     # Name of this node, anonymous means name will be auto generated.
     rospy.init_node('laser_find_shelf', anonymous=False)
     #----- Subscriber -------# 
     rospy.Subscriber("raw_obstacles", Obstacles, callback)
     #----- Markers --------# 
-    pub_marker_sphere     = rospy.Publisher('marker_sphere', MarkerArray,queue_size = 1,latch=True)
-    pub_marker_line       = rospy.Publisher('marker_line'  , MarkerArray,queue_size = 1,latch=True)
+    pub_marker_sphere     = rospy.Publisher('marker_sphere', MarkerArray,queue_size = 1,latch=False)
+    pub_marker_line       = rospy.Publisher('marker_line'  , MarkerArray,queue_size = 1,latch=False)
+    #----- TF -----------#
+    tfBuffer = tf2_ros.Buffer()
     r = rospy.Rate(10) #call at 10HZ
     while (not rospy.is_shutdown()):
         if is_need_pub:
+            # clean all markers
+            marker = Marker()
+            marker.header.frame_id = "map"
+            marker.action = marker.DELETEALL
+            m = MarkerArray()
+            m.markers.append(marker)
+            pub_marker_sphere.publish(m)
+            pub_marker_line.publish(m)
             #---- update center of rotations -----# 
-            pub_marker_sphere.publish(MarkerArray())
-            pub_marker_line.publish(MarkerArray())
             pub_marker_sphere.publish(marker_sphere)
             pub_marker_line.publish(marker_line)
-            #---- update center tf -----#
-            br = tf.TransformBroadcaster()
-            br.sendTransform((center[0], center[1], 0),
-                     tf.transformations.quaternion_from_euler(0, 0, 0),
-                     rospy.Time.now(),
-                     "shelf_center_laser",
-                     "map")
-            # ---- Reset ------# 
+            #---- listen tf base_link->s_center -----#
             marker_sphere = MarkerArray()
             marker_line   = MarkerArray()
+            '''
+            output_angle = None
+            try:
+                t = tfBuffer.lookup_transform('map', 'shelf_center_laser', rospy.Time()) 
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+                print (e)
+                output_angle = 0
+            else:
+                output_angle = find_nearest_angle_to_ref (heading, atan2(t.transform.translation.y, t.transform.translation.x)) 
+            '''
+            output_angle = find_nearest_angle_to_ref(heading, output_angle)
+            #---- update center tf -----#
+            br = tf2_ros.TransformBroadcaster()
+            t = TransformStamped()
+            t.header.stamp = rospy.Time.now()
+            t.header.frame_id = "map"
+            t.child_frame_id = "shelf_center_laser"
+            t.transform.translation.x = center[0]
+            t.transform.translation.y = center[1]
+            t.transform.translation.z = 0.0
+            q = tf_conversions.transformations.quaternion_from_euler(0, 0, output_angle)
+            t.transform.rotation.x = q[0]
+            t.transform.rotation.y = q[1]
+            t.transform.rotation.z = q[2]
+            t.transform.rotation.w = q[3]
+            
+            br.sendTransform(t)
+            # ---- Reset ------# 
             is_need_pub = False 
         r.sleep()
 
