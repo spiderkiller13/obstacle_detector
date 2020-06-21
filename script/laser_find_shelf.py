@@ -16,11 +16,10 @@ import tf_conversions
 ##################
 ### Parameters ###
 ##################
-SHEFT_LENGTH_TOLERANCE = 0.13 # Meter
+SHEFT_LENGTH_TOLERANCE = 0.06 # Meter
 ANGLE_TOLERANCE   = 0.04 # RANDIUS
-MAX_CIRCLE_RADIUS = 0.125 # Meter
-
-L = 0.65
+MAX_CIRCLE_RADIUS = 0.15 # Meter
+L = 0.73
 L_diagonal = L * sqrt(2)
 #----- Global variable --------# 
 marker_sphere = MarkerArray()
@@ -239,7 +238,7 @@ def callback(data):
         for i in coner_dict:
             centers.append( coner_dict[i] )
         center = cal_avg_points(centers)
-        rospy.loginfo("[Obstacle_detector] Found shelft center : " + str( center ) + ", with heading angle : " + str(heading))
+        rospy.logdebug("[Obstacle_detector] Found shelft center")
         is_need_pub = True 
 
 def main(args):
@@ -271,16 +270,7 @@ def main(args):
             #---- listen tf base_link->s_center -----#
             marker_sphere = MarkerArray()
             marker_line   = MarkerArray()
-            '''
-            output_angle = None
-            try:
-                t = tfBuffer.lookup_transform('map', 'shelf_center_laser', rospy.Time()) 
-            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-                print (e)
-                output_angle = 0
-            else:
-                output_angle = find_nearest_angle_to_ref (heading, atan2(t.transform.translation.y, t.transform.translation.x)) 
-            '''
+
             output_angle = find_nearest_angle_to_ref(heading, output_angle)
             #---- update center tf -----#
             br = tf2_ros.TransformBroadcaster()
