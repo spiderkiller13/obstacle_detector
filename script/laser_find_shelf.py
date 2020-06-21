@@ -287,7 +287,7 @@ def main(args):
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = "map"
-            t.child_frame_id = "shelf_center_laser"
+            t.child_frame_id = "s_center_laser"
             t.transform.translation.x = center[0]
             t.transform.translation.y = center[1]
             t.transform.translation.z = 0.0
