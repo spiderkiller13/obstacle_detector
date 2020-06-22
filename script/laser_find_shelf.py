@@ -16,18 +16,19 @@ import tf_conversions
 ##################
 ### Parameters ###
 ##################
-SHEFT_LENGTH_TOLERANCE = 0.06 # Meter
-ANGLE_TOLERANCE   = 0.04 # RANDIUS
-MAX_CIRCLE_RADIUS = 0.15 # Meter
-L = 0.73
+L = 0.73 # Length of shelf, Assume shelf is sqare footprint
+SHEFT_LENGTH_TOLERANCE = 0.06 # Meter, Tolerance of detecing shelf's length
+ANGLE_TOLERANCE   = 0.04 # Radian, Tolerance of detecing right angle
+MAX_CIRCLE_RADIUS = 0.15 # Meter, Ignore clusters's radius bigger than MAX_CIRCLE_RADIUS
 L_diagonal = L * sqrt(2)
 #----- Global variable --------# 
-marker_sphere = MarkerArray()
-marker_line   = MarkerArray()
-is_need_pub = False 
-center = None
-heading = None
+marker_sphere = MarkerArray()# Sphere markers show on RIVZ
+marker_line   = MarkerArray()# Line markers show on RIVZ
+is_need_pub = False
+center = None# [c1,c2,...], centers of shelf
+heading = None# [ang1,ang2, ... ] heading of shelf
 output_angle = 0
+
 def set_sphere(point , RGB = None  , size = 0.05, id = 0):
     '''
     Set Point at MarkArray 
@@ -96,6 +97,7 @@ def set_line( points , RGB = None , size = 0.2, id = 0):
 
 def cal_distance(c1,c2):
     '''
+    Calculate Eucleides distance between c1 and c2 
     Input:
         c1: (x1,y1)
         c2: (x2,y2)
@@ -111,27 +113,35 @@ def cal_angle(c1,c2,c3):
         c1: (x1,y1)
         c2: (x2,y2)
         c3: (x3,y3)
+    Output: 
+        angle - Radian
     '''
     a = (c2[0] - c1[0] , c2[1] - c1[1])
     b = (c3[0] - c1[0] , c3[1] - c1[1])
-    
-    ans = acos( round( (a[0]*b[0] + a[1]*b[1]) / (cal_distance(c1,c2) * cal_distance(c1,c3) ) ,5) )
-    #print ( ans )
-    #ans = a[0]*b[0] + a[1]*b[1]
-    return ans
+    return acos( round( (a[0]*b[0] + a[1]*b[1]) / (cal_distance(c1,c2) * cal_distance(c1,c3) ) ,5) )
 
 def cal_center(c1,c2,c3):
     '''
+    Calculate center of shelf by right triangle (c1,c2,c3)
     Input: 
-        c1 : (x,y) - this is a coner
-        c2 : - Two vertice adjcency to coner
-        c3 : 
+        c1 : (x,y) - this is a right angle coner
+        c2 : 
+        c3 : - Two vertice adjcency to coner
+    Output:
+        center: (x,y)
     '''
     a = (c2[0] - c1[0] , c2[1] - c1[1])
     b = (c3[0] - c1[0] , c3[1] - c1[1])
     return ( ( c1[0] + a[0]/2 + b[0]/2 , c1[1] + a[1]/2 + b[1]/2 ) )
 
 def cal_avg_points(c_list):
+    '''
+    Calculate avarage center from c_list
+    Input:
+        c_list: [c1,c2,c3,c4,....]
+    OutPut:
+        avg_center:(x,y)
+    '''
     x_sum = 0
     y_sum = 0
     for i in c_list:
@@ -141,7 +151,10 @@ def cal_avg_points(c_list):
 
 def cal_heading(c1,c2,c3,ref):
     '''
-    Input: 
+    Calculate heading of shelft by right triangle(c1,c2,c3)
+    Because shelf is a sqare, there're four possible direction (NSWE)
+    we choose the direction that is cloest to ref angle.
+    Input:
         c1 : (x,y) - this is a coner
         c2 : - Two vertice adjcency to coner
         c3 : 
@@ -159,11 +172,11 @@ def cal_heading(c1,c2,c3,ref):
 
 def find_nearest_angle_to_ref(angle ,ref):
     '''
-    Find nearest angle to ref, posible angle : 
+    Find nearest angle to ref
+    All four possible angle : 
     [angle , angle+pi/2 + angle +pi + angle + 3*pi/2]
     '''
     possible_angles = [angle, angle+(pi/2) , angle+pi, angle+(3*pi/2) ]
-
     ans = None
     min_dtheta = float('inf')
     for i in possible_angles:
@@ -172,17 +185,20 @@ def find_nearest_angle_to_ref(angle ,ref):
             min_dtheta = dtheta
             ans = i
     return ans
-    # 
+    
 def callback(data):
+    '''
+    This callback will be called when /raw_obstacle is published
+    '''
     global is_need_pub, center, heading
-    # ---- Get Rid of too large circle -----#
+    # ---- Ignore too large circle -----#
     c_list = []
     for c in data.circles:
         if c.true_radius <= MAX_CIRCLE_RADIUS:
             c_list.append( (c.center.x, c.center.y) )
-    #print (str(len(c_list)))
-    #print (c_list)
     #----- Searching radius -------#
+    # TODO, given a specific cooridinate and radius
+    # Maybe we can eliminate more mismatch during detection
     #----- Get adj_dict -------#
     adj_dict = {} # {c1:[ (L1,c2) , (L2,c3) ], c2: .....}
     for c1 in c_list:
@@ -193,23 +209,22 @@ def callback(data):
                 if c1 not in adj_dict: # New circle
                     adj_dict[c1] = []
                 adj_dict[c1].append( (l , c2) )
-    # pprint.pprint(adj_dict)
     
     #------ Get conner in adj_list ------# 
     coner_dict = {} # {c1 : center1}
     heading_list = []
     ID = 0 
     for c in adj_dict:
-        if len(adj_dict[c]) <= 1:
-            continue # Too few edge, definitely not corner
+        if len(adj_dict[c]) <= 1: # Too few edge, definitely not corner
+            continue 
         # Find two edge that has 90 degree and both with lenth L 
         for e1 in adj_dict[c]:
             for e2 in adj_dict[c]:
                 if  abs(e1[0] - L) < SHEFT_LENGTH_TOLERANCE and\
                     abs(e2[0] - L) < SHEFT_LENGTH_TOLERANCE: # Both edge has length L
                     angle = cal_angle(c , e1[1] ,e2[1] )
-                    if abs(angle - pi/2) < ANGLE_TOLERANCE and c not in coner_dict:
-                        #---- Found coner !!! -----#
+                    if abs(angle - pi/2) < ANGLE_TOLERANCE and c not in coner_dict:# Angle is 90 degree
+                        # Found coner!!!
                         coner_dict[c] = cal_center(c, e1[1] ,e2[1])
                         # heading angle 
                         if heading_list == []:
@@ -217,7 +232,7 @@ def callback(data):
                         else: 
                             heading_list.extend( cal_heading(c, e1[1] ,e2[1], heading_list[0]) )
 
-                        # rviz
+                        # RVIZ set marker
                         set_sphere( c ,     (0,0,255) , 0.1, ID)
                         set_line([c,e1[1]], (255,255,0), 0.02, ID)
                         set_line([c,e2[1]], (255,255,0), 0.02, ID+1)
@@ -234,11 +249,12 @@ def callback(data):
         heading[0] /= len(heading_list)
         heading[1] /= len(heading_list)
         heading = atan2(heading[1],heading[0])
-        #Calculate avg center 
+        # Calculate avg center 
         for i in coner_dict:
             centers.append( coner_dict[i] )
         center = cal_avg_points(centers)
         rospy.logdebug("[Obstacle_detector] Found shelft center")
+        # let main publish
         is_need_pub = True 
 
 def main(args):
@@ -256,6 +272,7 @@ def main(args):
     r = rospy.Rate(10) #call at 10HZ
     while (not rospy.is_shutdown()):
         if is_need_pub:
+            #---- Update all markers on RVIZ -----# 
             # clean all markers
             marker = Marker()
             marker.header.frame_id = "map"
@@ -264,15 +281,14 @@ def main(args):
             m.markers.append(marker)
             pub_marker_sphere.publish(m)
             pub_marker_line.publish(m)
-            #---- update center of rotations -----# 
+            # update center of shelf
             pub_marker_sphere.publish(marker_sphere)
             pub_marker_line.publish(marker_line)
-            #---- listen tf base_link->s_center -----#
+            # Reset markers
             marker_sphere = MarkerArray()
             marker_line   = MarkerArray()
-
-            output_angle = find_nearest_angle_to_ref(heading, output_angle)
-            #---- update center tf -----#
+            
+            #---- update s_center_laser tf -----#
             br = tf2_ros.TransformBroadcaster()
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
@@ -281,7 +297,7 @@ def main(args):
             t.transform.translation.x = center[0]
             t.transform.translation.y = center[1]
             t.transform.translation.z = 0.0
-            q = tf_conversions.transformations.quaternion_from_euler(0, 0, output_angle)
+            q = tf_conversions.transformations.quaternion_from_euler(0, 0, find_nearest_angle_to_ref(heading, output_angle))
             t.transform.rotation.x = q[0]
             t.transform.rotation.y = q[1]
             t.transform.rotation.z = q[2]
