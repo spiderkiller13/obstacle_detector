@@ -10,34 +10,37 @@ import tf
 import tf2_ros
 from obstacle_detector.msg import Obstacles
 import math 
-import pprint
 from math import atan2,acos,sqrt,pi,sin,cos
 import tf_conversions
+
 ##################
 ### Parameters ###
 ##################
-
 TOW_CAR_LENGTH = 0.93
 L = 0.73 # Length of shelf, Assume shelf is sqare footprint
 L_diagonal = L * sqrt(2)
+#Global variable
+MARKER_ID = 0
 
 class Laser_find_shelf():
-    def __init__(self,sheft_length_tolerance, angle_tolerance, max_circle_radius, search_radius):
+    def __init__(self,sheft_length_tolerance, angle_tolerance, max_circle_radius, search_radius, robot_name, role):
         #----- Global variable --------# 
         self.marker_sphere = MarkerArray()# Sphere markers show on RIVZ
         self.marker_line   = MarkerArray()# Line markers show on RIVZ
         self.is_need_pub = False
-        self.center = None# [c1,c2,...], centers of shelf
-        self.another_center = None  # TODO tmp 
-        self.heading = None# [ang1,ang2, ... ] heading of shelf
+        self.center = None # (x,y,theta) - centers of shelf
+        self.center_peer = None  # (x,y,theta) - centers of peer shelf
+        self.heading = None # [ang1,ang2, ... ] heading of shelf
         self.output_angle = 0
-        self.base_link_xy = None 
+        self.base_link_xy = None # (x,y), transformation map -> base_link
 
         #------ Parameters --------#
         self.sheft_length_tolerance = sheft_length_tolerance # Meter, Tolerance of detecing shelf's length
         self.angle_tolerance = angle_tolerance # Radian, Tolerance of detecing right angle
         self.max_circle_radius = max_circle_radius # Meter, Ignore clusters's radius bigger than MAX_CIRCLE_RADIUS
         self.search_radius = search_radius
+        self.robot_name = robot_name
+        self.role = role
         #----- Init node ------#
         # Name of this node, anonymous means name will be auto generated.
         rospy.init_node('laser_find_shelf', anonymous=False)
@@ -49,18 +52,17 @@ class Laser_find_shelf():
         #----- TF -----------#
         # For getting Tf map -> base_link
         self.tfBuffer = tf2_ros.Buffer()
-        listener = tf2_ros.TransformListener(self.tfBuffer)
-
-        self.is_parameters_set = False
-        while not self.is_parameters_set:
-            try:
-                self.robot_name = rospy.get_param("/unique_parameter/robot_name") # Find paramters in ros server
-                self.is_parameters_set = True
-            except:
-                rospy.loginfo("[laser_find_shelf] robot_name are not found in rosparam server, keep on trying...")
-                rospy.sleep(0.2) # Sleep 0.2 seconds for waiting the parameters loading
-                continue
-
+        # listener = tf2_ros.TransformListener(self.tfBuffer)
+        tf2_ros.TransformListener(self.tfBuffer)
+    
+    def set_mode(self,sheft_length_tolerance, angle_tolerance, max_circle_radius, search_radius):
+        '''
+        '''
+        self.sheft_length_tolerance = sheft_length_tolerance 
+        self.angle_tolerance = angle_tolerance 
+        self.max_circle_radius = max_circle_radius 
+        self.search_radius = search_radius
+    
     def get_base_link(self):
         try:
             t = self.tfBuffer.lookup_transform(self.robot_name + "/map", self.robot_name + "/base_link", rospy.Time())
@@ -139,6 +141,8 @@ class Laser_find_shelf():
         Input:
             c1: (x1,y1)
             c2: (x2,y2)
+        Return: 
+            float - Eucleides distance
         '''
         dx = c1[0] - c2[0]
         dy = c1[1] - c2[1]
@@ -189,24 +193,28 @@ class Laser_find_shelf():
 
     def cal_heading(self,c1,c2,c3,ref):
         '''
-        Calculate heading of shelft by right triangle(c1,c2,c3)
-        Because shelf is a sqare, there're four possible direction (NSWE)
-        we choose the direction that is cloest to ref angle.
-        Input:
+        Calculate heading of shelft by a right triangle(c1,c2,c3)
+        Because shelf is a sqare, there're four possible directions (NSWE)
+        we choose direction that is cloest to ref angle.
+        Arguments:
             c1 : (x,y) - this is a coner
-            c2 : - Two vertice adjcency to coner
-            c3 : 
-            ref : reg angle, output angle should be as near as possible to ref
+            c2 : (x,y) - Two vertice adjcency to coner
+            c3 : (x,y)
+            ref : referance angle, output angle should be as near as possible to ref
+        Return:
+            float - heading
+        Note that if ref is None, it will pick a direction arbitrarily
         '''
         a = (c2[0] - c1[0] , c2[1] - c1[1])
         b = (c3[0] - c1[0] , c3[1] - c1[1])
-        if ref != None:
+        if ref != None: # two sides of the right triangle, give us two values of heading
             ang1 = self.find_nearest_angle_to_ref ( atan2(a[1], a[0]) , ref)
             ang2 = self.find_nearest_angle_to_ref ( atan2(b[1], b[0]) , ref)
         else:
             ang1 = atan2(a[1], a[0])
             ang2 = self.find_nearest_angle_to_ref ( atan2(b[1], b[0]) , ang1)
-        return [ang1,ang2]
+        # return [ang1,ang2]
+        return (ang1 + ang2)/2.0
 
     def find_nearest_angle_to_ref(self, angle ,ref):
         '''
@@ -223,23 +231,46 @@ class Laser_find_shelf():
                 min_dtheta = dtheta
                 ans = i
         return ans
-        
-    def callback(self,data):
-        '''
-        This callback will be called when /raw_obstacle is published
-        '''
-        # ---- Ignore too large circle -----#
-        c_list = []
-        for c in data.circles:
-            if c.true_radius <= self.max_circle_radius:
-                #----- Searching radius -------#
-                # Given a specific cooridinate and radius
-                if self.base_link_xy != None and self.search_radius != None:
-                    if sqrt((c.center.x - self.base_link_xy[0])**2 + (c.center.y - self.base_link_xy[1])**2) > self.search_radius: # exceed search radius
-                        continue
-                c_list.append((c.center.x, c.center.y))
 
-        #----- Get adj_dict -------#
+    def check_search_region(self, search_center, search_radius, test_point):
+        '''
+        Check test point is in search region or not
+        Arguments:
+            search_center - (x,y), center of search region
+            search_radius - float, radius of search region 
+            test_point - (x,y), point that need to be checked.
+        Return: 
+            True - Inside search region
+            False - Outside search region 
+        Note that if search_center or search_radiusa are None, then return Ture without checking(disable checking).
+        '''
+        if search_center == None or search_radius == None: # skip checking 
+            return True 
+        else: # need to check
+            if self.cal_distance(test_point, search_center) > search_radius: #Outside search region
+                return False
+            else:
+                return True
+
+    def get_center(self, raw_data, search_center):
+        '''
+        Arguement:
+            raw_data - obstacle_detector/Obstacles
+            search_center - (x,y)
+        Return:
+            (x,y, theta) - center of shelft
+        If can't find center, return None 
+        '''
+        global MARKER_ID
+        # Ignore too large circle, and those outside the search region
+        c_list = []
+        for c in raw_data.circles:
+            c_point = (c.center.x, c.center.y)
+            if c.true_radius <= self.max_circle_radius and\
+               self.check_search_region(search_center, self.search_radius, c_point):
+                c_list.append(c_point)
+
+        # Get adj_dict, indicate adjecency relationship between pionts.
         adj_dict = {} # {c1:[ (L1,c2) , (L2,c3) ], c2: .....}
         for c1 in c_list:
             for c2 in c_list:
@@ -250,12 +281,12 @@ class Laser_find_shelf():
                         adj_dict[c1] = []
                     adj_dict[c1].append( (l , c2) )
         
-        #------ Get conner in adj_list ------# 
+        # Get conner in adj_list
         coner_dict = {} # {c1 : center1}
         heading_list = []
-        ID = 0 
+        
         for c in adj_dict:
-            if len(adj_dict[c]) <= 1: # Too few edge, definitely not corner
+            if len(adj_dict[c]) <= 1: # Too few edge, definitely not a corner
                 continue 
             # Find two edge that has 90 degree and both with lenth L 
             for e1 in adj_dict[c]:
@@ -266,46 +297,68 @@ class Laser_find_shelf():
                         if abs(angle - pi/2) < self.angle_tolerance and c not in coner_dict:# Angle is 90 degree
                             # Found coner!!!
                             coner_dict[c] = self.cal_center(c, e1[1] ,e2[1])
-                            # heading angle 
-                            if heading_list == []:
-                                heading_list.extend( self.cal_heading(c, e1[1] ,e2[1], None) )
-                            else: 
-                                heading_list.extend( self.cal_heading(c, e1[1] ,e2[1], heading_list[0]) )
+                            # heading angle
+                            try:
+                                # heading_list.extend( self.cal_heading(c, e1[1] ,e2[1], None) )
+                                heading_list.append(self.cal_heading(c, e1[1] ,e2[1], heading_list[0]))
+                            except IndexError:
+                                # heading_list.extend( self.cal_heading(c, e1[1] ,e2[1], heading_list[0]) )
+                                heading_list.append(self.cal_heading(c, e1[1] ,e2[1], None))
 
                             # RVIZ set marker
-                            self.set_sphere( c ,     (0,0,255) , 0.1, ID)
-                            self.set_line([c,e1[1]], (255,255,0), 0.02, ID)
-                            self.set_line([c,e2[1]], (255,255,0), 0.02, ID+1)
-                            ID += 2
+                            self.set_sphere( c ,     (0,0,255) , 0.1, MARKER_ID)
+                            self.set_line([c,e1[1]], (255,255,0), 0.02, MARKER_ID)
+                            self.set_line([c,e2[1]], (255,255,0), 0.02, MARKER_ID+1)
+                            MARKER_ID += 2
 
         #------ Get avg center of sheft ----#
-        centers = []
         if len(coner_dict) != 0:
             # Calculate avg heading
-            self.heading = [0,0]
+            heading = [0,0]
             for i in heading_list:
-                self.heading[0] += cos(i)
-                self.heading[1] += sin(i)
-            self.heading[0] /= len(heading_list)
-            self.heading[1] /= len(heading_list)
-            self.heading = atan2(self.heading[1],self.heading[0])
+                heading[0] += cos(i)
+                heading[1] += sin(i)
+            heading[0] /= len(heading_list)
+            heading[1] /= len(heading_list)
+            heading = atan2(heading[1],heading[0])
             # Calculate avg center 
+            centers = []
             for i in coner_dict:
-                centers.append( coner_dict[i] )
-            self.center = self.cal_avg_points(centers)
+                centers.append(coner_dict[i])
+            center = self.cal_avg_points(centers)
             rospy.logdebug("[Obstacle_detector] Found shelft center")
-            theta = atan2(self.base_link_xy[1], self.base_link_xy[0])
-            x = TOW_CAR_LENGTH * cos(theta) + self.base_link_xy[0]
-            y = TOW_CAR_LENGTH * sin(theta) + self.base_link_xy[1]
-            self.another_center = (x,y)
-            
-            # let main publish
-            self.is_need_pub = True
+            return (center[0], center[1], heading)
+        else:
+            return None
 
+    def callback(self,data):
+        '''
+        This callback will be called when /raw_obstacle is published
+        Get self.center - center of shelft neer base_link
+        and self.center_peer - center of shelft neer base_link_peer
+        '''
+        self.center = self.get_center(data, self.base_link_xy)
+
+        # TODO record last center_peer, so we don't have to check all four direction
+        theta = atan2(self.center[1], self.center[0])
+        for p_tem in [(TOW_CAR_LENGTH, 0),(-TOW_CAR_LENGTH, 0),(0, TOW_CAR_LENGTH),(0, -TOW_CAR_LENGTH)]:
+            # Iterate all possible direction
+            (x, y) = (self.center[0] + cos(theta)*p_tem[0] + sin(theta)*p_tem[1],
+                      self.center[1] - sin(theta)*p_tem[0] + cos(theta)*p_tem[1])
+            tentative_center = self.get_center(data, (x, y))
+            if tentative_center != None: # Found the center of peer
+                self.center_peer = tentative_center
+                continue
+        if self.center_peer == None:
+            rospy.logerr("[laser_finder] Can't find center_peer.")
+        
+        # let main publish
+        self.is_need_pub = True
 
     def update_publish(self):
         '''
         '''
+        global MARKER_ID
         #---- Update all markers on RVIZ -----# 
         # clean all markers
         marker = Marker()
@@ -319,6 +372,7 @@ class Laser_find_shelf():
         self.pub_marker_sphere.publish(self.marker_sphere)
         self.pub_marker_line.publish(self.marker_line)
         # Reset markers
+        MARKER_ID = 0
         self.marker_sphere = MarkerArray()
         self.marker_line   = MarkerArray()
         
@@ -331,35 +385,73 @@ class Laser_find_shelf():
         t.transform.translation.x = self.center[0]
         t.transform.translation.y = self.center[1]
         t.transform.translation.z = 0.0
-        q = tf_conversions.transformations.quaternion_from_euler(0, 0, self.find_nearest_angle_to_ref(self.heading, self.output_angle))
+        # TODO what on earth is the output angle
+        q = tf_conversions.transformations.quaternion_from_euler(0, 0,\
+            self.find_nearest_angle_to_ref(self.center[2], self.output_angle))
         t.transform.rotation.x = q[0]
         t.transform.rotation.y = q[1]
         t.transform.rotation.z = q[2]
         t.transform.rotation.w = q[3]
-        
         br.sendTransform(t)
-        # TODO
+
         #---- update s_center_laser tf -----#
         br = tf2_ros.TransformBroadcaster()
         t = TransformStamped()
         t.header.stamp = rospy.Time.now()
         t.header.frame_id = self.robot_name+"/map"
-        t.child_frame_id = self.robot_name+"/another_center"
-        t.transform.translation.x = self.another_center[0]
-        t.transform.translation.y = self.another_center[1]
+        t.child_frame_id = self.robot_name+"/center_peer"
+        t.transform.translation.x = self.center_peer[0]
+        t.transform.translation.y = self.center_peer[1]
         t.transform.translation.z = 0.0
-        q = tf_conversions.transformations.quaternion_from_euler(0, 0, self.find_nearest_angle_to_ref(self.heading, self.output_angle))
+        q = tf_conversions.transformations.quaternion_from_euler(0, 0,
+            self.find_nearest_angle_to_ref(self.center_peer[2], self.output_angle))
         t.transform.rotation.x = q[0]
         t.transform.rotation.y = q[1]
         t.transform.rotation.z = q[2]
         t.transform.rotation.w = q[3]
+        br.sendTransform(t)
         
+        #---- update s_center_laser tf -----#
+        br = tf2_ros.TransformBroadcaster()
+        t = TransformStamped()
+        t.header.stamp = rospy.Time.now()
+        t.header.frame_id = self.robot_name+"/map"
+        t.child_frame_id = self.robot_name+"/center_big_car"
+        t.transform.translation.x = (self.center[0] + self.center_peer[0])/2.0
+        t.transform.translation.y = (self.center[1] + self.center_peer[1])/2.0
+        t.transform.translation.z = 0.0
+        if self.role == "leader": # center - center_peer
+            vec_big_car = (self.center[0] - self.center_peer[0], self.center[1] - self.center_peer[1])
+        elif self.role == "follower": # center_peer - center
+            vec_big_car = (self.center_peer[0] - self.center[0], self.center_peer[1] - self.center[1])
+        q = tf_conversions.transformations.quaternion_from_euler(0, 0,atan2(vec_big_car[1], vec_big_car[0]))
+        t.transform.rotation.x = q[0]
+        t.transform.rotation.y = q[1]
+        t.transform.rotation.z = q[2]
+        t.transform.rotation.w = q[3]
         br.sendTransform(t)
 
-
 def main(args):
+    # Get unique_parameters
+    is_parameters_set = False
+    while (not is_parameters_set and not rospy.is_shutdown() ):
+        try:
+            robot_name = rospy.get_param("/unique_parameter/robot_name") # Find paramters in ros server
+            role       = rospy.get_param("/unique_parameter/role")
+            is_parameters_set = True
+        except:
+            rospy.loginfo("[laser_find_shelf] 'robot_name' or 'role' are not found in rosparam server, keep on trying...")
+            rospy.sleep(0.2) # Sleep 0.2 seconds for waiting the parameters loading
+            continue
+    
+
     # laser_find_shelf = Laser_find_shelf(0.06,0.04,0.15,None) // original paramter (before docking)
-    laser_find_shelf = Laser_find_shelf(0.1, 0.08, 0.20, 0.55) # After combine
+    laser_find_shelf = Laser_find_shelf(sheft_length_tolerance = 0.1,
+                                        angle_tolerance = 0.08,
+                                        max_circle_radius = 0.20,
+                                        search_radius = 0.55,
+                                        robot_name = robot_name,
+                                        role = role) # After combine # TODO Use topic or service 
     r = rospy.Rate(10) #call at 10HZ
     while (not rospy.is_shutdown()):
         laser_find_shelf.get_base_link()
@@ -368,7 +460,7 @@ def main(args):
             # ---- Reset ------# 
             laser_find_shelf.is_need_pub = False 
         r.sleep()
-
+    
 if __name__ == '__main__':
     try:
        main(sys.argv)
