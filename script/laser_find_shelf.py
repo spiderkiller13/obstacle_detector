@@ -339,26 +339,23 @@ class Laser_find_shelf():
         and self.center_peer - center of shelft neer base_link_peer
         '''
         self.center = self.get_center(data, self.base_link_xy)
-
-        theta = self.find_nearest_angle_to_ref(self.center[2], self.output_angle)
-        for p_tem in self.direction_list:
-            # Iterate all possible direction
-            (x, y) = (self.center[0] + cos(theta)*p_tem[0] - sin(theta)*p_tem[1],
-                      self.center[1] + sin(theta)*p_tem[0] + cos(theta)*p_tem[1])
-            tentative_center = self.get_center(data, (x, y))
-            if tentative_center != None: # Found the center of peer
-                self.center_peer = tentative_center
-                # Cache the direction
-                self.direction_list.remove(p_tem)
-                self.direction_list.insert(0,p_tem)
-                break
-        
-        if self.center_peer == None:
-            rospy.logerr("[laser_finder] Can't find center_peer.")
-        
-        # let main publish
         if self.center != None:
-            self.is_need_pub = True
+            theta = self.find_nearest_angle_to_ref(self.center[2], self.output_angle)
+            for p_tem in self.direction_list:
+                # Iterate all possible direction
+                (x, y) = (self.center[0] + cos(theta)*p_tem[0] - sin(theta)*p_tem[1],
+                        self.center[1] + sin(theta)*p_tem[0] + cos(theta)*p_tem[1])
+                tentative_center = self.get_center(data, (x, y))
+                if tentative_center != None: # Found the center of peer
+                    self.center_peer = tentative_center
+                    # Cache the direction
+                    self.direction_list.remove(p_tem)
+                    self.direction_list.insert(0,p_tem)
+                    break
+            
+            if self.center_peer == None:
+                rospy.logerr("[laser_finder] Can't find center_peer.")
+            self.is_need_pub = True# let main publish
 
     def update_publish(self):
         '''
