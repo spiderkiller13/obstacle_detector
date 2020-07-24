@@ -33,6 +33,7 @@ class Laser_find_shelf():
         self.heading = None # [ang1,ang2, ... ] heading of shelf
         self.output_angle = 0
         self.base_link_xy = None # (x,y), transformation map -> base_link
+        self.direction_list = [(TOW_CAR_LENGTH, 0),(-TOW_CAR_LENGTH, 0),(0, TOW_CAR_LENGTH),(0, -TOW_CAR_LENGTH)]
 
         #------ Parameters --------#
         self.sheft_length_tolerance = sheft_length_tolerance # Meter, Tolerance of detecing shelf's length
@@ -339,16 +340,19 @@ class Laser_find_shelf():
         '''
         self.center = self.get_center(data, self.base_link_xy)
 
-        # TODO record last center_peer, so we don't have to check all four direction
-        theta = atan2(self.center[1], self.center[0])
-        for p_tem in [(TOW_CAR_LENGTH, 0),(-TOW_CAR_LENGTH, 0),(0, TOW_CAR_LENGTH),(0, -TOW_CAR_LENGTH)]:
+        theta = self.find_nearest_angle_to_ref(self.center[2], self.output_angle)
+        for p_tem in self.direction_list:
             # Iterate all possible direction
-            (x, y) = (self.center[0] + cos(theta)*p_tem[0] + sin(theta)*p_tem[1],
-                      self.center[1] - sin(theta)*p_tem[0] + cos(theta)*p_tem[1])
+            (x, y) = (self.center[0] + cos(theta)*p_tem[0] - sin(theta)*p_tem[1],
+                      self.center[1] + sin(theta)*p_tem[0] + cos(theta)*p_tem[1])
             tentative_center = self.get_center(data, (x, y))
             if tentative_center != None: # Found the center of peer
                 self.center_peer = tentative_center
-                continue
+                # Cache the direction
+                self.direction_list.remove(p_tem)
+                self.direction_list.insert(0,p_tem)
+                break
+        
         if self.center_peer == None:
             rospy.logerr("[laser_finder] Can't find center_peer.")
         
@@ -393,10 +397,10 @@ class Laser_find_shelf():
         t.transform.rotation.z = q[2]
         t.transform.rotation.w = q[3]
         br.sendTransform(t)
-
+        
         #---- update s_center_laser tf -----#
-        br = tf2_ros.TransformBroadcaster()
-        t = TransformStamped()
+        # br = tf2_ros.TransformBroadcaster()
+        # t = TransformStamped()
         t.header.stamp = rospy.Time.now()
         t.header.frame_id = self.robot_name+"/map"
         t.child_frame_id = self.robot_name+"/center_peer"
@@ -412,8 +416,8 @@ class Laser_find_shelf():
         br.sendTransform(t)
         
         #---- update s_center_laser tf -----#
-        br = tf2_ros.TransformBroadcaster()
-        t = TransformStamped()
+        # br = tf2_ros.TransformBroadcaster()
+        # t = TransformStamped()
         t.header.stamp = rospy.Time.now()
         t.header.frame_id = self.robot_name+"/map"
         t.child_frame_id = self.robot_name+"/center_big_car"
@@ -430,7 +434,7 @@ class Laser_find_shelf():
         t.transform.rotation.z = q[2]
         t.transform.rotation.w = q[3]
         br.sendTransform(t)
-
+        
 def main(args):
     # Get unique_parameters
     is_parameters_set = False
@@ -444,7 +448,6 @@ def main(args):
             rospy.sleep(0.2) # Sleep 0.2 seconds for waiting the parameters loading
             continue
     
-
     # laser_find_shelf = Laser_find_shelf(0.06,0.04,0.15,None) // original paramter (before docking)
     laser_find_shelf = Laser_find_shelf(sheft_length_tolerance = 0.1,
                                         angle_tolerance = 0.08,
@@ -457,8 +460,7 @@ def main(args):
         laser_find_shelf.get_base_link()
         if laser_find_shelf.is_need_pub:
             laser_find_shelf.update_publish()
-            # ---- Reset ------# 
-            laser_find_shelf.is_need_pub = False 
+            laser_find_shelf.is_need_pub = False # Reset flag 
         r.sleep()
     
 if __name__ == '__main__':
