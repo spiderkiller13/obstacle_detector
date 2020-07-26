@@ -399,6 +399,8 @@ class Laser_find_shelf():
         
         if self.center_peer != None:
             #---- update s_center_laser tf -----#
+            br = tf2_ros.TransformBroadcaster()
+            t = TransformStamped()
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = self.robot_name+"/map"
             t.child_frame_id = self.robot_name+"/center_peer"
@@ -415,6 +417,8 @@ class Laser_find_shelf():
         
         if self.center != None and self.center_peer != None:
             #---- update s_center_laser tf -----#
+            br = tf2_ros.TransformBroadcaster()
+            t = TransformStamped()
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = self.robot_name+"/map"
             t.child_frame_id = self.robot_name+"/center_big_car"
