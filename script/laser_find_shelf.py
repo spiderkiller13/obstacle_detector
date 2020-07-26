@@ -379,22 +379,23 @@ class Laser_find_shelf():
         self.marker_line   = MarkerArray()
         
         #---- update s_center_laser tf -----#
-        br = tf2_ros.TransformBroadcaster()
-        t = TransformStamped()
-        t.header.stamp = rospy.Time.now()
-        t.header.frame_id = self.robot_name+"/map"
-        t.child_frame_id = self.robot_name+"/s_center_laser"
-        t.transform.translation.x = self.center[0]
-        t.transform.translation.y = self.center[1]
-        t.transform.translation.z = 0.0
-        # TODO what on earth is the output angle
-        q = tf_conversions.transformations.quaternion_from_euler(0, 0,\
-            self.find_nearest_angle_to_ref(self.center[2], self.output_angle))
-        t.transform.rotation.x = q[0]
-        t.transform.rotation.y = q[1]
-        t.transform.rotation.z = q[2]
-        t.transform.rotation.w = q[3]
-        br.sendTransform(t)
+        if self.center != None:
+            br = tf2_ros.TransformBroadcaster()
+            t = TransformStamped()
+            t.header.stamp = rospy.Time.now()
+            t.header.frame_id = self.robot_name+"/map"
+            t.child_frame_id = self.robot_name+"/s_center_laser"
+            t.transform.translation.x = self.center[0]
+            t.transform.translation.y = self.center[1]
+            t.transform.translation.z = 0.0
+            # TODO what on earth is the output angle
+            q = tf_conversions.transformations.quaternion_from_euler(0, 0,\
+                self.find_nearest_angle_to_ref(self.center[2], self.output_angle))
+            t.transform.rotation.x = q[0]
+            t.transform.rotation.y = q[1]
+            t.transform.rotation.z = q[2]
+            t.transform.rotation.w = q[3]
+            br.sendTransform(t)
         
         if self.center_peer != None:
             #---- update s_center_laser tf -----#
@@ -411,7 +412,8 @@ class Laser_find_shelf():
             t.transform.rotation.z = q[2]
             t.transform.rotation.w = q[3]
             br.sendTransform(t)
-            
+        
+        if self.center != None and self.center_peer != None:
             #---- update s_center_laser tf -----#
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = self.robot_name+"/map"
