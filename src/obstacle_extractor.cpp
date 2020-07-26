@@ -36,6 +36,7 @@
 #include "obstacle_detector/obstacle_extractor.h"
 #include "obstacle_detector/utilities/figure_fitting.h"
 #include "obstacle_detector/utilities/math_utilities.h"
+#include <iostream>
 
 using namespace std;
 using namespace obstacle_detector;
@@ -141,7 +142,6 @@ void ObstacleExtractor::scanCallback(const sensor_msgs::LaserScan::ConstPtr scan
 
     phi += scan_msg->angle_increment;
   }
-
   processPoints();
 }
 
@@ -410,7 +410,7 @@ void ObstacleExtractor::publishObstacles() {
     tf::StampedTransform transform;
 
     try {
-      tf_listener_.waitForTransform(p_frame_id_, base_frame_id_, stamp_, ros::Duration(0.1));
+      tf_listener_.waitForTransform(p_frame_id_, base_frame_id_, stamp_, ros::Duration(0.3));
       tf_listener_.lookupTransform(p_frame_id_, base_frame_id_, stamp_, transform);
     }
     catch (tf::TransformException& ex) {
