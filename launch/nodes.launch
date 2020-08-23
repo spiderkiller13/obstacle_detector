@@ -21,7 +21,23 @@
     <param name="target_frame_id"   value="robot"/>
   </node-->
   <arg name="robot_name" default="car1"/>
-  <node name="laser_find_shelf" pkg="obstacle_detector" type="laser_find_shelf.py" output="screen"/>
+  <arg name="role" default="leader"/>
+
+  <node name="laser_find_shelf" pkg="obstacle_detector" type="laser_find_shelf.py" output="screen">
+    <!-- System -->
+    <param name="robot_name" value="$(arg robot_name)"/>
+    <param name="role" value="leader"/>
+    <param name="frequency" value="10"/>
+    <!-- Kinematics -->
+    <param name="two_car_length" value="0.93"/>
+    <param name="shelf_length" value="0.73"/>
+    <param name="max_circle_radius" value="0.20"/>
+    <param name="search_radius" value="0.55"/>
+    <!-- Tolerance -->
+    <param name="sheft_length_tolerance" value="0.1"/>
+    <param name="angle_tolerance" value="0.08"/>
+  </node>
+  
   <node name="obstacle_extractor" pkg="obstacle_detector" type="obstacle_extractor_node" output="screen">
     <param name="active"               value="true"/>
     <param name="use_scan"             value="true"/>
