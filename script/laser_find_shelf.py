@@ -419,24 +419,27 @@ class Laser_find_shelf():
         
         if self.center != None and self.center_peer != None:
             #---- update s_center_laser tf -----#
-            # br = tf2_ros.TransformBroadcaster()
-            # t = TransformStamped()
-            t.header.stamp = rospy.Time.now()
-            t.header.frame_id = self.robot_name+"/map"
-            t.child_frame_id = self.robot_name+"/center_big_car"
-            t.transform.translation.x = (self.center[0] + self.center_peer[0])/2.0
-            t.transform.translation.y = (self.center[1] + self.center_peer[1])/2.0
-            t.transform.translation.z = 0.0
-            if self.role == "leader": # center - center_peer
-                vec_big_car = (self.center[0] - self.center_peer[0], self.center[1] - self.center_peer[1])
-            elif self.role == "follower": # center_peer - center
-                vec_big_car = (self.center_peer[0] - self.center[0], self.center_peer[1] - self.center[1])
-            q = tf_conversions.transformations.quaternion_from_euler(0, 0,atan2(vec_big_car[1], vec_big_car[0]))
-            t.transform.rotation.x = q[0]
-            t.transform.rotation.y = q[1]
-            t.transform.rotation.z = q[2]
-            t.transform.rotation.w = q[3]
-            br.sendTransform(t)
+            try: # TODO DEBUG use
+                t.header.stamp = rospy.Time.now()
+                t.header.frame_id = self.robot_name+"/map"
+                t.child_frame_id = self.robot_name+"/center_big_car"
+                t.transform.translation.x = (self.center[0] + self.center_peer[0])/2.0
+                t.transform.translation.y = (self.center[1] + self.center_peer[1])/2.0
+                t.transform.translation.z = 0.0
+                if self.role == "leader": # center - center_peer
+                    vec_big_car = (self.center[0] - self.center_peer[0], self.center[1] - self.center_peer[1])
+                elif self.role == "follower": # center_peer - center
+                    vec_big_car = (self.center_peer[0] - self.center[0], self.center_peer[1] - self.center[1])
+                q = tf_conversions.transformations.quaternion_from_euler(0, 0,atan2(vec_big_car[1], vec_big_car[0]))
+                t.transform.rotation.x = q[0]
+                t.transform.rotation.y = q[1]
+                t.transform.rotation.z = q[2]
+                t.transform.rotation.w = q[3]
+                br.sendTransform(t)
+            except Exception as e:
+                print (self.center)
+                print (self.center_peer)
+                print (e)
         
 def main(args):
     # Get unique_parameters
