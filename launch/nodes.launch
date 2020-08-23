@@ -26,7 +26,7 @@
   <node name="laser_find_shelf" pkg="obstacle_detector" type="laser_find_shelf.py" output="screen">
     <!-- System -->
     <param name="robot_name" value="$(arg robot_name)"/>
-    <param name="role" value="leader"/>
+    <param name="role" value="$(arg role)"/>
     <param name="frequency" value="10"/>
     <!-- Kinematics -->
     <param name="two_car_length" value="0.93"/>
