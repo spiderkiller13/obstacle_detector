@@ -286,9 +286,9 @@ class Laser_find_shelf():
                                 heading_list.append(self.cal_heading(c, e1[1] ,e2[1], None))
 
                             # RVIZ set marker
-                            self.set_sphere( c ,     (0,0,255) , 0.1, self.marker_id)
-                            self.set_line([c,e1[1]], (255,255,0), 0.02, self.marker_id)
-                            self.set_line([c,e2[1]], (255,255,0), 0.02, self.marker_id+1)
+                            self.set_sphere( c ,self.robot_name+"/map" ,(0,0,255) , 0.1, self.marker_id)
+                            self.set_line([c,e1[1]],self.robot_name+"/map" ,(255,255,0), 0.02, self.marker_id)
+                            self.set_line([c,e2[1]],self.robot_name+"/map" ,(255,255,0), 0.02, self.marker_id+1)
                             self.marker_id += 2
 
         #------ Get avg center of sheft ----#
@@ -430,17 +430,6 @@ class Laser_find_shelf():
             return True# let main publish
         else:
             return False
-# def main(args):
-
-    
-
-#     r = rospy.Rate(10) #call at 10HZ
-#     while (not rospy.is_shutdown()):
-#         laser_find_shelf.get_base_link()
-#         if laser_find_shelf.is_need_pub:
-#             laser_find_shelf.update_publish()
-#             laser_find_shelf.is_need_pub = False # Reset flag 
-#         r.sleep()
     
 if __name__ == '__main__':
     rospy.init_node('laser_find_shelf',anonymous=False)
@@ -456,7 +445,7 @@ if __name__ == '__main__':
     SEARCH_RADIUS = rospy.get_param(param_name="~search_radius", default="0.55")
     # Tolerance
     SHEFT_LENGTH_TOLERANCE = rospy.get_param(param_name="~sheft_length_tolerance", default="0.1")
-    ANGLE_TOLERANCE =  rospy.get_param(param_name="~angle_tolerance", default="0.08")
+    ANGLE_TOLERANCE =  rospy.get_param(param_name="~angle_tolerance", default="5")*pi/180 # Degree
 
     SHELF_LEN_DIAGONAL = SHELF_LEN * sqrt(2)
     # Init laser_finder
