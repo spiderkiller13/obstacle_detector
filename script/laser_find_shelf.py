@@ -10,6 +10,7 @@ import tf2_ros
 from obstacle_detector.msg import Obstacles
 from math import atan2,acos,sqrt,pi,sin,cos
 import tf_conversions
+from lucky_utility.ros.rospy_utility import Marker_Manager
 
 class Laser_find_shelf():
     def __init__(self,sheft_length_tolerance, angle_tolerance, max_circle_radius, search_radius, robot_name, role): 
@@ -35,11 +36,16 @@ class Laser_find_shelf():
         #----- Subscriber -------# 
         rospy.Subscriber("raw_obstacles", Obstacles, self.callback)
         #----- Markers --------# 
-        self.pub_marker_sphere     = rospy.Publisher('marker_sphere', MarkerArray,queue_size = 1,latch=False)
-        self.pub_marker_line       = rospy.Publisher('marker_line'  , MarkerArray,queue_size = 1,latch=False)
-        self.marker_sphere = MarkerArray()# Sphere markers show on RIVZ
-        self.marker_line   = MarkerArray()# Line markers show on RIVZ
-        self.marker_id = 0
+        #self.pub_marker_sphere     = rospy.Publisher('marker_sphere', MarkerArray,queue_size = 1,latch=False)
+        #self.pub_marker_line       = rospy.Publisher('marker_line'  , MarkerArray,queue_size = 1,latch=False)
+        #self.marker_sphere = MarkerArray()# Sphere markers show on RIVZ
+        #self.marker_line   = MarkerArray()# Line markers show on RIVZ
+        #self.marker_id = 0
+        self.viz_marker = Marker_Manager("obstacle_detector/markers")
+        # SPHERE_LIST
+        self.viz_marker.register_marker("corners", 7, self.robot_name+"/map", (0,0,255) , 0.1)
+        # self.viz_marker.register_marker("edge", 4, self.robot_name+"/map", (255,255,0), 0.02)
+        
         #----- TF -----------#
         # For getting Tf map -> base_link
         self.tfBuffer = tf2_ros.Buffer()
@@ -61,59 +67,6 @@ class Laser_find_shelf():
             # return None 
         else:
             self.base_link_xy = (t.transform.translation.x, t.transform.translation.y)
-
-    def set_sphere(self, point ,frame_id , RGB = (255,0,0)  , size = 0.05, id = 0):
-        '''
-        Set Point at MarkArray 
-        Input : 
-            point - (x,y)
-            RGB - (r,g,b)
-        '''
-        marker = Marker()
-        marker.header.frame_id = frame_id # self.robot_name+"/map"
-        marker.id = id
-        marker.ns = "tiles"
-        marker.header.stamp = rospy.get_rostime()
-        marker.type = marker.SPHERE
-        marker.action = marker.ADD
-        marker.scale.x = size
-        marker.scale.y = size
-        marker.scale.z = size
-        marker.color.a = 1.0
-        marker.color.r = RGB[0]/255.0
-        marker.color.g = RGB[1]/255.0
-        marker.color.b = RGB[2]/255.0
-        marker.pose.orientation.w = 1.0
-        (marker.pose.position.x , marker.pose.position.y) = point
-        self.marker_sphere.markers.append(marker)
-
-    def set_line(self, points ,frame_id, RGB = (255,0,0) , size = 0.2, id = 0):
-        '''
-        Set line at MarkArray
-        Input : 
-            points = [p1,p2....] 
-        '''
-        marker = Marker()
-        marker.header.frame_id = frame_id # self.robot_name+"/map"
-        marker.id = id
-        marker.ns = "tiles"
-        marker.header.stamp = rospy.get_rostime()
-        marker.type = marker.LINE_STRIP
-        marker.action = marker.ADD
-        marker.scale.x = size
-        marker.scale.y = size
-        marker.scale.z = size
-        marker.color.a = 1.0
-        marker.color.r = RGB[0]/255.0
-        marker.color.g = RGB[1]/255.0
-        marker.color.b = RGB[2]/255.0
-        marker.pose.orientation.w = 1.0
-        for i in points : 
-            p = Point()
-            p.x = i[0]
-            p.y = i[1]
-            marker.points.append(p)
-        self.marker_line.markers.append(marker)
 
     def cal_distance(self,c1,c2):
         '''
@@ -286,10 +239,12 @@ class Laser_find_shelf():
                                 heading_list.append(self.cal_heading(c, e1[1] ,e2[1], None))
 
                             # RVIZ set marker
-                            self.set_sphere( c ,self.robot_name+"/map" ,(0,0,255) , 0.1, self.marker_id)
-                            self.set_line([c,e1[1]],self.robot_name+"/map" ,(255,255,0), 0.02, self.marker_id)
-                            self.set_line([c,e2[1]],self.robot_name+"/map" ,(255,255,0), 0.02, self.marker_id+1)
-                            self.marker_id += 2
+                            #self.set_sphere( c ,self.robot_name+"/map" ,(0,0,255) , 0.1, self.marker_id)
+                            #self.set_line([c,e1[1]],self.robot_name+"/map" ,(255,255,0), 0.02, self.marker_id)
+                            #self.set_line([c,e2[1]],self.robot_name+"/map" ,(255,255,0), 0.02, self.marker_id+1)
+                            # self.marker_id += 2
+        # print (tuple(coner_dict.keys()))
+        self.viz_marker.update_marker("corners", tuple(coner_dict.keys()))
 
         #------ Get avg center of sheft ----#
         if len(coner_dict) != 0:
@@ -324,21 +279,22 @@ class Laser_find_shelf():
         '''
         # global MARKER_ID
         #---- Update all markers on RVIZ -----# 
+        self.viz_marker.publish()
         # clean all markers
-        marker = Marker()
-        marker.header.frame_id = self.robot_name+"/map"
-        marker.action = marker.DELETEALL
-        m = MarkerArray()
-        m.markers.append(marker)
-        self.pub_marker_sphere.publish(m)
-        self.pub_marker_line.publish(m)
+        #marker = Marker()
+        #marker.header.frame_id = self.robot_name+"/map"
+        #marker.action = marker.DELETEALL
+        #m = MarkerArray()
+        #m.markers.append(marker)
+        #self.pub_marker_sphere.publish(m)
+        #self.pub_marker_line.publish(m)
         # update center of shelf
-        self.pub_marker_sphere.publish(self.marker_sphere)
-        self.pub_marker_line.publish(self.marker_line)
+        #self.pub_marker_sphere.publish(self.marker_sphere)
+        #self.pub_marker_line.publish(self.marker_line)
         # Reset markers
-        self.marker_id = 0
-        self.marker_sphere = MarkerArray()
-        self.marker_line   = MarkerArray()
+        #self.marker_id = 0
+        #self.marker_sphere = MarkerArray()
+        #self.marker_line   = MarkerArray()
         
         br = tf2_ros.TransformBroadcaster()
         t = TransformStamped()
