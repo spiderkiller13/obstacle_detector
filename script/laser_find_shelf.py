@@ -10,7 +10,7 @@ import tf2_ros
 from obstacle_detector.msg import Obstacles
 from math import atan2,acos,sqrt,pi,sin,cos
 
-from lucky_utility.ros.rospy_utility import Marker_Manager, get_tf, send_tf
+from lucky_utility.ros.rospy_utility import Marker_Manager, get_tf, send_tf, normalize_angle,cal_ang_distance
 
 class Corner():
     def __init__(self, corner, neighbor1, neighbor2, ref_heading):
@@ -23,6 +23,7 @@ class Corner():
             self.heading = self.cal_heading(corner, neighbor1, neighbor2, 0.0)
         else:
             self.heading = self.cal_heading(corner, neighbor1, neighbor2, ref_heading)
+        # print ("heading:" + str(self.heading) + ", ref=" + str(ref_heading))
 
     def cal_center(self,c1,c2,c3):
         '''
@@ -56,7 +57,7 @@ class Corner():
         b = (c3[0] - c1[0] , c3[1] - c1[1])
         if ref != None: # two sides of the right triangle, give us two values of heading
             ang1 = self.find_nearest_angle_to_ref ( atan2(a[1], a[0]) , ref)
-            ang2 = self.find_nearest_angle_to_ref ( atan2(b[1], b[0]) , ref)
+            ang2 = self.find_nearest_angle_to_ref ( atan2(b[1], b[0]) , ang1)
         else:
             ang1 = atan2(a[1], a[0])
             ang2 = self.find_nearest_angle_to_ref ( atan2(b[1], b[0]) , ang1)
@@ -69,13 +70,26 @@ class Corner():
         [angle , angle+pi/2 + angle +pi + angle + 3*pi/2]
         '''
         possible_angles = [angle, angle+(pi/2) , angle+pi, angle+(3*pi/2) ]
+        
         ans = None
+        min_dtheta = float('inf')
+        for i in possible_angles:
+            ang_dis = cal_ang_distance(i, ref)
+            if ang_dis < min_dtheta:
+                min_dtheta = ang_dis
+                ans = i
+            if 2*pi - ang_dis < min_dtheta:
+                min_dtheta = 2*pi - ang_dis
+                ans = i
+        
+        '''
         min_dtheta = float('inf')
         for i in possible_angles:
             dtheta = abs ( ( cos(i)*cos(ref) + sin(i)*sin(ref) ) -1 )
             if dtheta < min_dtheta:
                 min_dtheta = dtheta
                 ans = i
+        '''
         return ans
 
 class Shelf_finder():
@@ -289,6 +303,7 @@ class Two_shelf_finder():
         self.scan = data
     
     def run_once(self):
+        global tmp_count
         # Update scan
         if self.scan == None: # No scan data
             return False
@@ -325,7 +340,8 @@ class Two_shelf_finder():
             #self.viz_marker.publish()
             #Publish peer shelf
             if self.shelf_finder_peer.corner_dict == {}:
-                rospy.logerr("[laser_finder] Can't find center_peer.")
+                rospy.logerr("[laser_finder] Can't find peer shelft center." + str(tmp_count))
+                tmp_count += 1
             else:
                 self.shelf_finder_peer.publish()
                 return True
@@ -357,7 +373,7 @@ if __name__ == '__main__':
     ANGLE_TOLERANCE =  rospy.get_param(param_name="~angle_tolerance", default="5")*pi/180 # Degree
 
     SHELF_LEN_DIAGONAL = SHELF_LEN * sqrt(2)
-    
+    tmp_count = 0
     TWO_SHELF_FINDER = Two_shelf_finder()
     rate = rospy.Rate(FREQUENCY)
     while not rospy.is_shutdown():

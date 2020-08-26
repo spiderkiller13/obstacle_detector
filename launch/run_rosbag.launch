@@ -21,6 +21,9 @@
     <param name="angle_tolerance" value="6"/> <!-- degree -->
   </node>
   
+  <include file="$(find obstacle_detector)/launch/laser_filter.launch"/>
+
+  
   <node name="obstacle_extractor" pkg="obstacle_detector" type="obstacle_extractor_node" output="screen">
     <param name="active"               value="true"/>
     <param name="use_scan"             value="true"/>
@@ -42,6 +45,7 @@
     <param name="radius_enlargement"   value="0.0"/> <!--0.3 default -->
 
     <param name="frame_id"             value="$(arg robot_name)/map"/>
-    <remap from="scan" to="/$(arg robot_name)/scan_merged"/>
+    <!-- <remap from="scan" to="/$(arg robot_name)/scan_merged"/> -->
+    <remap from="scan" to="/car1/scan_merged/filtered"/>
   </node>
 </launch>
