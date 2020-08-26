@@ -10,19 +10,22 @@ import tf2_ros
 from obstacle_detector.msg import Obstacles
 from math import atan2,acos,sqrt,pi,sin,cos
 
-from lucky_utility.ros.rospy_utility import Marker_Manager, get_tf, send_tf, normalize_angle,cal_ang_distance
+from lucky_utility.ros.rospy_utility import Marker_Manager, get_tf, send_tf,\
+                                            normalize_angle,cal_ang_distance, cal_avg_angle
 
 class Corner():
-    def __init__(self, corner, neighbor1, neighbor2, ref_heading):
+    def __init__(self, corner, neighbor1, neighbor2):
         self.corner = corner#  (x,y)
         self.neighbor1 = neighbor1 # (x,y)
         self.neighbor2 = neighbor2 # (x,y)
 
         self.center = self.cal_center(corner, neighbor1, neighbor2)
+        '''
         if ref_heading == None:
             self.heading = self.cal_heading(corner, neighbor1, neighbor2, 0.0)
         else:
             self.heading = self.cal_heading(corner, neighbor1, neighbor2, ref_heading)
+        '''
         # print ("heading:" + str(self.heading) + ", ref=" + str(ref_heading))
 
     def cal_center(self,c1,c2,c3):
@@ -39,58 +42,6 @@ class Corner():
         b = (c3[0] - c1[0] , c3[1] - c1[1])
         return ( ( c1[0] + a[0]/2 + b[0]/2 , c1[1] + a[1]/2 + b[1]/2 ) )
     
-    def cal_heading(self,c1,c2,c3,ref):
-        '''
-        Calculate heading of shelft by a right triangle(c1,c2,c3)
-        Because shelf is a sqare, there're four possible directions (NSWE)
-        we choose one direction that is cloest to ref angle.
-        Arguments:
-            c1 : (x,y) - this is a coner
-            c2 : (x,y) - Two vertice adjcency to coner
-            c3 : (x,y)
-            ref : referance angle, output angle should be as near as possible to ref
-        Return:
-            float - heading
-        Note that if ref is None, it will pick a direction arbitrarily
-        '''
-        a = (c2[0] - c1[0] , c2[1] - c1[1])
-        b = (c3[0] - c1[0] , c3[1] - c1[1])
-        if ref != None: # two sides of the right triangle, give us two values of heading
-            ang1 = self.find_nearest_angle_to_ref ( atan2(a[1], a[0]) , ref)
-            ang2 = self.find_nearest_angle_to_ref ( atan2(b[1], b[0]) , ang1)
-        else:
-            ang1 = atan2(a[1], a[0])
-            ang2 = self.find_nearest_angle_to_ref ( atan2(b[1], b[0]) , ang1)
-        return (ang1 + ang2)/2.0
-    
-    def find_nearest_angle_to_ref(self, angle ,ref):
-        '''
-        Find nearest angle to ref
-        All four possible angle : 
-        [angle , angle+pi/2 + angle +pi + angle + 3*pi/2]
-        '''
-        possible_angles = [angle, angle+(pi/2) , angle+pi, angle+(3*pi/2) ]
-        
-        ans = None
-        min_dtheta = float('inf')
-        for i in possible_angles:
-            ang_dis = cal_ang_distance(i, ref)
-            if ang_dis < min_dtheta:
-                min_dtheta = ang_dis
-                ans = i
-            if 2*pi - ang_dis < min_dtheta:
-                min_dtheta = 2*pi - ang_dis
-                ans = i
-        
-        '''
-        min_dtheta = float('inf')
-        for i in possible_angles:
-            dtheta = abs ( ( cos(i)*cos(ref) + sin(i)*sin(ref) ) -1 )
-            if dtheta < min_dtheta:
-                min_dtheta = dtheta
-                ans = i
-        '''
-        return ans
 
 class Shelf_finder():
     def __init__(self,
@@ -100,7 +51,7 @@ class Shelf_finder():
                  search_radius,
                  name):
         self.scan = None
-        self.center = None # (x,y,theta) - centers of shelf
+        self.center = (None, None, None) # (x,y,theta) - centers of shelf
         self.search_center = None# (x,y)
         self.corner_dict = {}
         #------ Parameters --------#
@@ -172,7 +123,7 @@ class Shelf_finder():
             else:
                 return True
 
-    def cal_corner(self, raw_data, search_center, ref_heading):
+    def cal_corner(self, raw_data, search_center):
         '''
         Arguement:
             raw_data - obstacle_detector/Obstacles
@@ -213,8 +164,52 @@ class Shelf_finder():
                         angle = self.cal_angle(c , e1[1] ,e2[1] )
                         if abs(angle - pi/2) < self.angle_tolerance and c not in corner_dict:# Angle is 90 degree
                             # Found coner!!!
-                            corner_dict[c] = Corner(c, e1[1] ,e2[1], ref_heading)
+                            corner_dict[c] = Corner(c, e1[1] ,e2[1])
         return corner_dict
+
+    def cal_heading(self,c1,c2,c3,ref):
+        '''
+        Calculate heading of shelft by a right triangle(c1,c2,c3)
+        Because shelf is a sqare, there're four possible directions (NSWE)
+        we choose one direction that is cloest to ref angle.
+        Arguments:
+            c1 : (x,y) - this is a coner
+            c2 : (x,y) - Two vertice adjcency to coner
+            c3 : (x,y)
+            ref : referance angle, output angle should be as near as possible to ref
+        Return:
+            float - heading
+        Note that if ref is None, it will pick a direction arbitrarily
+        '''
+        a = (c2[0] - c1[0] , c2[1] - c1[1])
+        b = (c3[0] - c1[0] , c3[1] - c1[1])
+        if ref != None: # two sides of the right triangle, give us two values of heading
+            ang1 = self.find_nearest_angle_to_ref ( atan2(a[1], a[0]) , ref)
+            ang2 = self.find_nearest_angle_to_ref ( atan2(b[1], b[0]) , ang1)
+        else:
+            ang1 = atan2(a[1], a[0])
+            ang2 = self.find_nearest_angle_to_ref ( atan2(b[1], b[0]) , ang1)
+        return cal_avg_angle((ang1, ang2))# (ang1 + ang2)/2.0
+    
+    def find_nearest_angle_to_ref(self, angle ,ref):
+        '''
+        Find nearest angle to ref
+        All four possible angle : 
+        [angle , angle+pi/2 + angle +pi + angle + 3*pi/2]
+        '''
+        possible_angles = [angle, angle+(pi/2) , angle+pi, angle+(3*pi/2) ]
+        
+        ans = None
+        min_dtheta = float('inf')
+        for i in possible_angles:
+            ang_dis = cal_ang_distance(i, ref)
+            if ang_dis < min_dtheta:
+                min_dtheta = ang_dis
+                ans = i
+            if 2*pi - ang_dis < min_dtheta:
+                min_dtheta = 2*pi - ang_dis
+                ans = i
+        return ans
 
     def cal_avg_center(self):
         '''
@@ -223,13 +218,20 @@ class Shelf_finder():
             (x,y,theta) 
         '''
         avg_center = [0,0,0] # (x,y,yaw)
+        
+        # Get x,y
         for c in self.corner_dict:
             avg_center[0] += self.corner_dict[c].center[0]
             avg_center[1] += self.corner_dict[c].center[1]
-            avg_center[2] += self.corner_dict[c].heading
         avg_center[0] /= len(self.corner_dict)
         avg_center[1] /= len(self.corner_dict)
-        avg_center[2] /= len(self.corner_dict)
+        
+        # Get theta
+        heading_list = []
+        for c in self.corner_dict:
+            heading_list.append(self.cal_heading(c, self.corner_dict[c].neighbor1,
+                                self.corner_dict[c].neighbor2, self.center[2]))
+        avg_center[2] = cal_avg_angle(heading_list)
         return avg_center
 
     def publish(self):
@@ -245,9 +247,9 @@ class Shelf_finder():
         return True: Allow publish
         '''
         try:
-            self.corner_dict = self.cal_corner(self.scan, self.search_center, self.center[2])
+            self.corner_dict = self.cal_corner(self.scan, self.search_center) # , self.center[2])
         except TypeError:
-            self.corner_dict = self.cal_corner(self.scan, self.search_center, None)
+            self.corner_dict = self.cal_corner(self.scan, self.search_center) # , None)
         if self.corner_dict == {}:
             return False # Can't find any corner
 
@@ -290,9 +292,6 @@ class Two_shelf_finder():
         self.base_link_xy = None
         # Subscrieer 
         rospy.Subscriber("raw_obstacles", Obstacles, self.obstacle_cb)
-        # Tmp marker
-        self.viz_marker = Marker_Manager("tmp")
-        self.viz_marker.register_marker("tmp", 7, ROBOT_NAME+"/map", (255,255,0), 0.1)
     
     def obstacle_cb(self,data):
         '''
@@ -303,7 +302,6 @@ class Two_shelf_finder():
         self.scan = data
     
     def run_once(self):
-        global tmp_count
         # Update scan
         if self.scan == None: # No scan data
             return False
@@ -336,12 +334,9 @@ class Two_shelf_finder():
                     self.direction_list.remove(p_tem)
                     self.direction_list.insert(0,p_tem)
                     break
-            #self.viz_marker.update_marker("tmp", marker_tmp_list)
-            #self.viz_marker.publish()
             #Publish peer shelf
             if self.shelf_finder_peer.corner_dict == {}:
-                rospy.logerr("[laser_finder] Can't find peer shelft center." + str(tmp_count))
-                tmp_count += 1
+                rospy.logerr("[laser_finder] Can't find peer shelft center.")
             else:
                 self.shelf_finder_peer.publish()
                 return True
@@ -373,7 +368,6 @@ if __name__ == '__main__':
     ANGLE_TOLERANCE =  rospy.get_param(param_name="~angle_tolerance", default="5")*pi/180 # Degree
 
     SHELF_LEN_DIAGONAL = SHELF_LEN * sqrt(2)
-    tmp_count = 0
     TWO_SHELF_FINDER = Two_shelf_finder()
     rate = rospy.Rate(FREQUENCY)
     while not rospy.is_shutdown():
