@@ -53,8 +53,8 @@ class Odom_fuser():
 
         # TODO Reverse the polarity -- Doctor Who, WHY?
         
-        self.carB_xyt[0] += (dcar1[0]+dcar2[0])/2.0
-        self.carB_xyt[1] += (dcar1[1]+dcar2[1])/2.0
+        self.carB_xyt[0] += (dcar1[0]-dcar2[0])/2.0
+        self.carB_xyt[1] += (dcar1[1]-dcar2[1])/2.0
         # carB_xyt[2] += (dcar1+dcar2)/2.0 # TODO do atan2()
         
         # 
