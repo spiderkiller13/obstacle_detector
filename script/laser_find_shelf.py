@@ -11,7 +11,7 @@ from obstacle_detector.msg import Obstacles
 from math import atan2,acos,sqrt,pi,sin,cos
 
 from lucky_utility.ros.rospy_utility import Marker_Manager, get_tf, send_tf,\
-                                            normalize_angle,cal_ang_distance, cal_avg_angle
+                                            normalize_angle,cal_ang_distance, cal_avg_angle, vec_trans_coordinate
 
 class Corner():
     def __init__(self, corner, neighbor1, neighbor2):
@@ -40,7 +40,7 @@ class Corner():
         '''
         a = (c2[0] - c1[0] , c2[1] - c1[1])
         b = (c3[0] - c1[0] , c3[1] - c1[1])
-        return ( ( c1[0] + a[0]/2 + b[0]/2 , c1[1] + a[1]/2 + b[1]/2 ) )
+        return ( ( c1[0] + a[0]/2.0 + b[0]/2.0 , c1[1] + a[1]/2.0 + b[1]/2.0 ) )
     
 
 class Shelf_finder():
@@ -324,8 +324,8 @@ class Two_shelf_finder():
             marker_tmp_list = []
             for p_tem in self.direction_list:
                 theta = self.shelf_finder_base.center[2]
-                (x, y) = (self.base_link_xyt[0] + cos(theta)*p_tem[0] - sin(theta)*p_tem[1],
-                          self.base_link_xyt[1] + sin(theta)*p_tem[0] + cos(theta)*p_tem[1])
+                (x, y) = vec_trans_coordinate(p_tem, (self.base_link_xyt[0], 
+                                                      self.base_link_xyt[1], theta))
                 self.shelf_finder_peer.search_center = (x,y)
                 marker_tmp_list.append((x,y))
                 

@@ -5,8 +5,9 @@ import tf2_ros
 import tf # conversion euler
 from nav_msgs.msg import Odometry
 from math import atan2,acos,sqrt,pi,sin,cos,tan
-from lucky_utility.ros.rospy_utility import get_tf, send_tf
+from lucky_utility.ros.rospy_utility import get_tf, send_tf, vec_trans_coordinate, normalize_angle
 
+L = 0.93 # m
 
 class Odom_fuser():
     def __init__(self):
@@ -18,7 +19,10 @@ class Odom_fuser():
         self.car1_xy_last = None # 
         self.car1_xyt = None # (x,y)
         self.car2_xy_last = None # 
-        self.carB_xyt = [0,0,0] # [x,y,theta]
+        self.carB_odom_1 = [0,0,0] # [x,y,theta]
+        self.carB_odom_2 = [0,0,0] # [x,y,theta]
+        self.carB_odom_3 = [0,0,0] # [x,y,theta]
+        self.carB_map = [0,0,0]
         # TODO Tmp
         self.init = False
         # For getting Tf
@@ -27,10 +31,12 @@ class Odom_fuser():
 
 
     def run_once(self):
-        # Update TF 
+        # Update TF
+        car1_map = get_tf(self.tfBuffer, "car1/map", "car1/odom")
+        car2_map = get_tf(self.tfBuffer, "car2/map", "car2/odom")
         car1_xyt = get_tf(self.tfBuffer, "car1/odom", "car1/base_link")
         car2_xyt = get_tf(self.tfBuffer, "car2/odom", "car2/base_link")
-        if car1_xyt == None or car2_xyt == None:
+        if car1_xyt == None or car2_xyt == None or car1_map == None or car2_map == None:
             return False
         else:
             self.car1_xyt = car1_xyt
@@ -45,18 +51,37 @@ class Odom_fuser():
             if tf_xyt == None:
                 return False
             else:
-                self.carB_xyt = list(tf_xyt)
+                self.carB_map = list(tf_xyt)
+                # self.carB_odom = [0,0,0] # TODO tmp
                 self.init = True
         
-        dcar1 = (self.car1_xyt[0] - self.car1_xy_last[0], self.car1_xyt[1] - self.car1_xy_last[1])
-        dcar2 = (self.car2_xyt[0] - self.car2_xy_last[0], self.car2_xyt[1] - self.car2_xy_last[1])
-
-        # TODO Reverse the polarity -- Doctor Who, WHY?
+        dcar1 = (self.car1_xyt[0] - self.car1_xy_last[0],
+                 self.car1_xyt[1] - self.car1_xy_last[1])
+        dcar2 = (self.car2_xyt[0] - self.car2_xy_last[0],
+                 self.car2_xyt[1] - self.car2_xy_last[1])
+        # d_1_to_2 = (L - dcar2[0] - dcar1[0], - dcar2[1] - dcar1[1])
+        d_1_to_2 = (dcar1[0] + L + dcar2[0], dcar1[1] + dcar2[1])
+        dtheta = atan2(d_1_to_2[1], d_1_to_2[0])
+        '''
+        if dtheta > 0:
+            dtheta -= pi
+        else:
+            dtheta += pi
+            dtheta *= -1
+        '''
+        print (round(dtheta,10))
+        #dcar1_trans = vec_trans_coordinate(dcar1, (0,0,car1_map[2] - self.carB_map[2]))
+        #dcar2_trans = vec_trans_coordinate(dcar2, (0,0,car2_map[2] - self.carB_map[2]))
+        # self.carB_odom[0] += (dcar1[0]-dcar2[0])/2.0
+        # self.carB_odom[1] += (dcar1[1]-dcar2[1])/2.0
+        self.carB_odom_1[0] += (dcar1[0])
+        self.carB_odom_1[1] += (dcar1[1])
+        self.carB_odom_2[0] += (-dcar2[0])
+        self.carB_odom_2[1] += (-dcar2[1])
         
-        self.carB_xyt[0] += (dcar1[0]-dcar2[0])/2.0
-        self.carB_xyt[1] += (dcar1[1]-dcar2[1])/2.0
-        # carB_xyt[2] += (dcar1+dcar2)/2.0 # TODO do atan2()
-        
+        self.carB_odom_3[0] += (dcar1[0]-dcar2[0])/2
+        self.carB_odom_3[1] += (dcar1[1]-dcar2[1])/2
+        self.carB_odom_3[2] += dtheta
         # 
         self.car1_xy_last = self.car1_xyt[:2]
         self.car2_xy_last = self.car2_xyt[:2]
@@ -74,7 +99,11 @@ class Odom_fuser():
             self.car2_xy_last = self.car2_xy
     '''
     def publish(self):
-        send_tf(self.carB_xyt, "car1/map", "car1/base_link_big_car")
+        send_tf(self.carB_odom_1, "carB/odom", "carB/base_link_1")
+        send_tf(self.carB_odom_2, "carB/odom", "carB/base_link_2")
+        send_tf(self.carB_odom_3, "carB/odom", "carB/base_link_3")
+        send_tf(self.carB_map, "carB/map", "carB/odom")
+
 def main(args):
     # Init naive controller
     odom_fuser = Odom_fuser()
@@ -82,7 +111,6 @@ def main(args):
     while not rospy.is_shutdown():
         if odom_fuser.run_once():
             odom_fuser.publish()
-            # print (odom_fuser.carB_xyt)
             # TOOD publisher
         rate.sleep()
 
