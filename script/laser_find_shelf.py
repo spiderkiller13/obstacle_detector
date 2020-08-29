@@ -18,15 +18,7 @@ class Corner():
         self.corner = corner#  (x,y)
         self.neighbor1 = neighbor1 # (x,y)
         self.neighbor2 = neighbor2 # (x,y)
-
         self.center = self.cal_center(corner, neighbor1, neighbor2)
-        '''
-        if ref_heading == None:
-            self.heading = self.cal_heading(corner, neighbor1, neighbor2, 0.0)
-        else:
-            self.heading = self.cal_heading(corner, neighbor1, neighbor2, ref_heading)
-        '''
-        # print ("heading:" + str(self.heading) + ", ref=" + str(ref_heading))
 
     def cal_center(self,c1,c2,c3):
         '''
@@ -59,7 +51,7 @@ class Shelf_finder():
         self.angle_tolerance = angle_tolerance # Radian, Tolerance of detecing right angle
         self.max_circle_radius = max_circle_radius # Meter, Ignore clusters's radius bigger than MAX_CIRCLE_RADIUS
         self.search_radius = search_radius
-        self.name = name
+        self.name = name # "base" or "peer"
         #----- Init node ------#
         # Name of this node, anonymous means name will be auto generated.
         rospy.init_node('laser_find_shelf', anonymous=False)
@@ -67,8 +59,6 @@ class Shelf_finder():
         self.viz_marker = Marker_Manager("obstacle_detector/markers/" + name)
         self.viz_marker.register_marker("corners_"+name, 7, ROBOT_NAME+"/map", (0,0,255) , 0.1)
         self.viz_marker.register_marker("edges_"+name, 5  , ROBOT_NAME+"/map", (255,255,0), 0.02)
-        #----- Publisher -------#
-        
 
     def set_mode(self,sheft_length_tolerance, angle_tolerance, max_circle_radius, search_radius):
         '''
@@ -241,8 +231,8 @@ class Shelf_finder():
         '''
         #---- Update all markers on RVIZ -----# 
         self.viz_marker.publish()
-        if self.name == "base":
-            send_tf(self.center, ROBOT_NAME+"/map", ROBOT_NAME+"/s_center_laser")
+        # if self.name == "base":
+        #     send_tf(self.center, ROBOT_NAME+"/map", ROBOT_NAME+"/s_center_laser")
     
     def run_once(self, ref_ang):
         '''
@@ -359,9 +349,14 @@ class Two_shelf_finder():
         return False
     
     def publish(self):
-        send_tf(self.big_car_xyt, ROBOT_NAME+"/map", ROBOT_NAME+"/center_big_car")
-        self.pub_theta.publish(normalize_angle(self.base_link_xyt[2]\
-                                             - self.shelf_finder_base.center[2]))
+        # send_tf(self.big_car_xyt, ROBOT_NAME+"/map", ROBOT_NAME+"/center_big_car")
+        # Get theta1 or theta2
+        if ROLE == "leader": # Theta1
+            theta = normalize_angle(self.base_link_xyt[2] - self.shelf_finder_base.center[2])
+        elif ROLE == "follower": # Theta2
+            theta = normalize_angle(self.base_link_xyt[2] - self.shelf_finder_base.center[2] + pi)
+        self.pub_theta.publish(theta)
+        rospy.loginfo("[shelf_finder]" + str(theta))
 
 if __name__ == '__main__':
     rospy.init_node('laser_find_shelf',anonymous=False)
