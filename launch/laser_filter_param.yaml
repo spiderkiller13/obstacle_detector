@@ -1,6 +1,6 @@
 scan_filter_chain:
 - name: median
-  type: SpaceMedianFilter
+  type: laser_filters/SpaceMedianFilter
   params:
     window_size: 3
     is_ignoring_closer_filtered_point: true

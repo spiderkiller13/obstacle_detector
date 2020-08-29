@@ -11,7 +11,7 @@ Panels:
         - /car1/shelf_yellow_line1/Namespaces1
         - /LaserScan1
       Splitter Ratio: 0.5527777671813965
-    Tree Height: 363
+    Tree Height: 766
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -87,6 +87,12 @@ Visualization Manager:
           Value: false
         car1/s_standby_laser:
           Value: false
+        car1/tmp/base/s_center_laser:
+          Value: true
+        car1/tmp/center_big_car:
+          Value: true
+        car1/tmp/peer/s_center_laser:
+          Value: true
         car2/base_link:
           Value: true
         car2/center_big_car:
@@ -95,45 +101,38 @@ Visualization Manager:
           Value: true
         car2/odom:
           Value: true
-        carB/base_link:
-          Value: true
-        carB/map:
-          Value: true
-        carB/odom:
-          Value: true
-        world:
-          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: true
       Tree:
+        car1/map:
+          car1/center_big_car:
+            {}
+          car1/center_peer:
+            {}
+          car1/odom:
+            car1/base_link:
+              car1/laser_front:
+                {}
+              car1/laser_rear:
+                {}
+          car1/s_center_laser:
+            car1/s_standby_laser:
+              {}
+          car1/tmp/base/s_center_laser:
+            {}
+          car1/tmp/center_big_car:
+            {}
+          car1/tmp/peer/s_center_laser:
+            {}
         car2/map:
           car2/center_big_car:
             {}
           car2/odom:
             car2/base_link:
               {}
-        world:
-          car1/map:
-            car1/center_big_car:
-              {}
-            car1/center_peer:
-              {}
-            car1/odom:
-              car1/base_link:
-                car1/laser_front:
-                  {}
-                car1/laser_rear:
-                  {}
-            car1/s_center_laser:
-              car1/s_standby_laser:
-                {}
-          carB/map:
-            carB/odom:
-              carB/base_link:
-                {}
       Update Interval: 0
       Value: true
     - Alpha: 0.30000001192092896
@@ -171,7 +170,7 @@ Visualization Manager:
       Marker Topic: /obstacle_detector/markers/base
       Name: car1/shelf_yellow_line
       Namespaces:
-        {}
+        tiles: true
       Queue Size: 1
       Value: true
     - Class: rviz/MarkerArray
@@ -179,7 +178,7 @@ Visualization Manager:
       Marker Topic: /obstacle_detector/markers/peer
       Name: MarkerArray
       Namespaces:
-        {}
+        tiles: true
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -235,7 +234,7 @@ Visualization Manager:
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: car2/odom
+    Fixed Frame: car1/map
     Frame Rate: 30
   Name: root
   Tools:
@@ -260,7 +259,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/ThirdPersonFollower
-      Distance: 5.59473180770874
+      Distance: 11.043006896972656
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -278,7 +277,7 @@ Visualization Manager:
       Pitch: 1.544796347618103
       Target Frame: <Fixed Frame>
       Value: ThirdPersonFollower (rviz)
-      Yaw: 3.1635828018188477
+      Yaw: 3.153582811355591
     Saved: ~
 Window Geometry:
   Displays:

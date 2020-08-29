@@ -4,7 +4,7 @@ import rospy
 from nav_msgs.msg import OccupancyGrid, Path # Global map 
 from geometry_msgs.msg import TransformStamped, Point, PoseArray, PoseStamped, Pose2D, Pose,PoseWithCovarianceStamped, Quaternion# Global path
 from visualization_msgs.msg import Marker, MarkerArray # Debug drawing
-from std_msgs.msg import String
+from std_msgs.msg import String, Float64
 import tf
 import tf2_ros
 from obstacle_detector.msg import Obstacles
@@ -67,7 +67,9 @@ class Shelf_finder():
         self.viz_marker = Marker_Manager("obstacle_detector/markers/" + name)
         self.viz_marker.register_marker("corners_"+name, 7, ROBOT_NAME+"/map", (0,0,255) , 0.1)
         self.viz_marker.register_marker("edges_"+name, 5  , ROBOT_NAME+"/map", (255,255,0), 0.02)
+        #----- Publisher -------#
         
+
     def set_mode(self,sheft_length_tolerance, angle_tolerance, max_circle_radius, search_radius):
         '''
         '''
@@ -211,7 +213,7 @@ class Shelf_finder():
                 ans = i
         return ans
 
-    def cal_avg_center(self):
+    def cal_avg_center(self, ref_ang):
         '''
         Calculate avgerage center from self.corner_dict
         Return :
@@ -230,7 +232,7 @@ class Shelf_finder():
         heading_list = []
         for c in self.corner_dict:
             heading_list.append(self.cal_heading(c, self.corner_dict[c].neighbor1,
-                                self.corner_dict[c].neighbor2, self.center[2]))
+                                self.corner_dict[c].neighbor2, ref_ang))
         avg_center[2] = cal_avg_angle(heading_list)
         return avg_center
 
@@ -241,8 +243,7 @@ class Shelf_finder():
         self.viz_marker.publish()
         # TODO get rid of tmp
         send_tf(self.center, ROBOT_NAME+"/map", ROBOT_NAME+"/tmp/"+self.name+"/s_center_laser")
-        
-    def run_once(self):
+    def run_once(self, ref_ang):
         '''
         return True: Allow publish
         '''
@@ -254,7 +255,7 @@ class Shelf_finder():
             return False # Can't find any corner
 
         # Get average center(x,y)
-        self.center = self.cal_avg_center()
+        self.center = self.cal_avg_center(ref_ang)
 
         # Update debug markers
         self.viz_marker.update_marker("corners_"+self.name, tuple(self.corner_dict.keys()))
@@ -268,6 +269,8 @@ class Shelf_finder():
     
 class Two_shelf_finder():
     def __init__(self):
+        self.big_car_xyt = [None, None, None]
+        # 
         self.scan = None
         # Init laser_finder
         self.shelf_finder_base = Shelf_finder(sheft_length_tolerance = SHEFT_LENGTH_TOLERANCE,
@@ -292,6 +295,8 @@ class Two_shelf_finder():
         self.base_link_xy = None
         # Subscrieer 
         rospy.Subscriber("raw_obstacles", Obstacles, self.obstacle_cb)
+        # Publisher
+        self.pub_theta = rospy.Publisher("/"+ ROBOT_NAME +"/theta", Float64, queue_size = 1,latch=False)
     
     def obstacle_cb(self,data):
         '''
@@ -316,11 +321,13 @@ class Two_shelf_finder():
         if self.base_link_xyt == None:
             return False
 
+        # Calculate base center
         self.shelf_finder_base.search_center = self.base_link_xyt[:2]
-        if self.shelf_finder_base.run_once():
+        if self.shelf_finder_base.run_once(self.big_car_xyt[2]):
             # Publish base shelf
             self.shelf_finder_base.publish()
 
+            # Calculate peer center
             marker_tmp_list = []
             for p_tem in self.direction_list:
                 theta = self.shelf_finder_base.center[2]
@@ -329,11 +336,19 @@ class Two_shelf_finder():
                 self.shelf_finder_peer.search_center = (x,y)
                 marker_tmp_list.append((x,y))
                 
-                if self.shelf_finder_peer.run_once():# Found the center of peer
+                if self.shelf_finder_peer.run_once(self.big_car_xyt[2]):# Found the center of peer
                     # Cache the direction
                     self.direction_list.remove(p_tem)
                     self.direction_list.insert(0,p_tem)
                     break
+
+            # Calculate big car
+            vec_big_car = (self.shelf_finder_base.center[0] - self.shelf_finder_peer.center[0], 
+                        self.shelf_finder_base.center[1] - self.shelf_finder_peer.center[1])
+            self.big_car_xyt = ((self.shelf_finder_base.center[0] + self.shelf_finder_peer.center[0])/2.0,
+                            (self.shelf_finder_base.center[1] + self.shelf_finder_peer.center[1])/2.0,
+                                atan2(vec_big_car[1], vec_big_car[0]))
+
             #Publish peer shelf
             if self.shelf_finder_peer.corner_dict == {}:
                 rospy.logerr("[laser_finder] Can't find peer shelft center.")
@@ -344,12 +359,9 @@ class Two_shelf_finder():
     
     def publish(self):
         # TODO get rid of tmp
-        vec_big_car = (self.shelf_finder_base.center[0] - self.shelf_finder_peer.center[0], 
-                       self.shelf_finder_base.center[1] - self.shelf_finder_peer.center[1])
-        send_tf(((self.shelf_finder_base.center[0] + self.shelf_finder_peer.center[0])/2.0,
-                 (self.shelf_finder_base.center[1] + self.shelf_finder_peer.center[1])/2.0,
-                 atan2(vec_big_car[1], vec_big_car[0])),
-                 ROBOT_NAME+"/map", ROBOT_NAME+"/tmp/center_big_car")
+        send_tf(self.big_car_xyt, ROBOT_NAME+"/map", ROBOT_NAME+"/tmp/center_big_car")
+        self.pub_theta.publish(normalize_angle(self.base_link_xyt[2]\
+                                             - self.shelf_finder_base.center[2]))
 
 if __name__ == '__main__':
     rospy.init_node('laser_find_shelf',anonymous=False)

@@ -62,14 +62,8 @@ class Odom_fuser():
         # d_1_to_2 = (L - dcar2[0] - dcar1[0], - dcar2[1] - dcar1[1])
         d_1_to_2 = (dcar1[0] + L + dcar2[0], dcar1[1] + dcar2[1])
         dtheta = atan2(d_1_to_2[1], d_1_to_2[0])
-        '''
-        if dtheta > 0:
-            dtheta -= pi
-        else:
-            dtheta += pi
-            dtheta *= -1
-        '''
-        print (round(dtheta,10))
+        print (round(dcar1[1],10))
+        print (round(dcar2[1],10))
         #dcar1_trans = vec_trans_coordinate(dcar1, (0,0,car1_map[2] - self.carB_map[2]))
         #dcar2_trans = vec_trans_coordinate(dcar2, (0,0,car2_map[2] - self.carB_map[2]))
         # self.carB_odom[0] += (dcar1[0]-dcar2[0])/2.0
