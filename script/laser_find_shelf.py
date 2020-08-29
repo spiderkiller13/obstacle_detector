@@ -333,18 +333,18 @@ class Two_shelf_finder():
                     self.direction_list.insert(0,p_tem)
                     break
 
-            # Calculate big car
-            vec_big_car = (self.shelf_finder_base.center[0] - self.shelf_finder_peer.center[0], 
-                        self.shelf_finder_base.center[1] - self.shelf_finder_peer.center[1])
-            self.big_car_xyt = ((self.shelf_finder_base.center[0] + self.shelf_finder_peer.center[0])/2.0,
-                            (self.shelf_finder_base.center[1] + self.shelf_finder_peer.center[1])/2.0,
-                                atan2(vec_big_car[1], vec_big_car[0]))
-
             #Publish peer shelf
             if self.shelf_finder_peer.corner_dict == {}:
                 rospy.logerr("[laser_finder] Can't find peer shelft center.")
             else:
+                # Publish peer
                 self.shelf_finder_peer.publish()
+                # Calculate big car
+                vec_big_car = (self.shelf_finder_base.center[0] - self.shelf_finder_peer.center[0], 
+                               self.shelf_finder_base.center[1] - self.shelf_finder_peer.center[1])
+                self.big_car_xyt = ((self.shelf_finder_base.center[0] + self.shelf_finder_peer.center[0])/2.0,
+                                    (self.shelf_finder_base.center[1] + self.shelf_finder_peer.center[1])/2.0,
+                                    atan2(vec_big_car[1], vec_big_car[0]))
                 return True
         return False
     
@@ -356,7 +356,7 @@ class Two_shelf_finder():
         elif ROLE == "follower": # Theta2
             theta = normalize_angle(self.base_link_xyt[2] - self.shelf_finder_base.center[2] + pi)
         self.pub_theta.publish(theta)
-        rospy.loginfo("[shelf_finder]" + str(theta))
+        # rospy.loginfo("[shelf_finder]" + str(theta))
 
 if __name__ == '__main__':
     rospy.init_node('laser_find_shelf',anonymous=False)
