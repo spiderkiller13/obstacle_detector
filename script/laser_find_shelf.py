@@ -335,7 +335,7 @@ class Two_shelf_finder():
 
             #Publish peer shelf
             if self.shelf_finder_peer.corner_dict == {}:
-                rospy.logerr("[laser_finder] Can't find peer shelft center.")
+                rospy.logwarn("[laser_finder] Can't find peer shelft center.")
             else:
                 # Publish peer
                 self.shelf_finder_peer.publish()
