@@ -241,8 +241,9 @@ class Shelf_finder():
         '''
         #---- Update all markers on RVIZ -----# 
         self.viz_marker.publish()
-        # TODO get rid of tmp
-        send_tf(self.center, ROBOT_NAME+"/map", ROBOT_NAME+"/tmp/"+self.name+"/s_center_laser")
+        if self.name == "base":
+            send_tf(self.center, ROBOT_NAME+"/map", ROBOT_NAME+"/s_center_laser")
+    
     def run_once(self, ref_ang):
         '''
         return True: Allow publish
@@ -358,8 +359,7 @@ class Two_shelf_finder():
         return False
     
     def publish(self):
-        # TODO get rid of tmp
-        send_tf(self.big_car_xyt, ROBOT_NAME+"/map", ROBOT_NAME+"/tmp/center_big_car")
+        send_tf(self.big_car_xyt, ROBOT_NAME+"/map", ROBOT_NAME+"/center_big_car")
         self.pub_theta.publish(normalize_angle(self.base_link_xyt[2]\
                                              - self.shelf_finder_base.center[2]))
 
