@@ -21,6 +21,7 @@
     <param name="target_frame_id"   value="robot"/>
   </node-->
   <arg name="robot_name" default="car1"/>
+  <arg name="obstacle_map" default="car1"/>
   <arg name="role" default="leader"/>
 
   <node name="laser_find_shelf" pkg="obstacle_detector" type="laser_find_shelf.py" output="screen">
@@ -57,8 +58,8 @@
     <param name="max_merge_spread"     value="0.2"/>
     <param name="max_circle_radius"    value="0.15"/> <!--0.6 default -->
     <param name="radius_enlargement"   value="0.0"/> <!--0.3 default -->
-
-    <param name="frame_id"             value="$(arg robot_name)/map"/>
+    <!-- <param name="frame_id"             value="$(arg robot_name)/base_link"/> -->
+    <param name="frame_id"             value="$(arg obstacle_map)/map"/>
     <!-- <remap from="scan" to="/$(arg robot_name)/scan_merged"/> -->
     <remap from="scan" to="/$(arg robot_name)/scan_merged/filtered"/>
   </node>

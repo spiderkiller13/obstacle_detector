@@ -299,16 +299,22 @@ class Two_shelf_finder():
     def run_once(self):
         # Update scan
         if self.scan == None: # No scan data
+            rospy.logerr("No scan data") # TODO tmp 
             return False
         else:
             self.shelf_finder_base.scan = self.scan
             self.shelf_finder_peer.scan = self.scan
         
         # Update tf 
-        tran_xyt = get_tf(self.tfBuffer, ROBOT_NAME+"/raw/map", ROBOT_NAME+"/raw/base_link", ignore_time = True)
+        if ROLE == "leader":
+            tran_xyt = get_tf(self.tfBuffer, "carB/map","car1/base_link", ignore_time = True)
+        else:
+            tran_xyt = get_tf(self.tfBuffer, ROBOT_NAME+"/map", ROBOT_NAME+"/base_link", ignore_time = True)
+        
         if tran_xyt != None:
             self.base_link_xyt = tran_xyt
         if self.base_link_xyt == None:
+            rospy.logerr("No tran_xyt") # TODO tmp 
             return False
 
         # Calculate base center
@@ -345,6 +351,7 @@ class Two_shelf_finder():
                                     (self.shelf_finder_base.center[1] + self.shelf_finder_peer.center[1])/2.0,
                                     atan2(vec_big_car[1], vec_big_car[0]))
                 return True
+        rospy.logerr("Can't find center") # TODO tmp 
         return False
     
     def publish(self):
@@ -383,4 +390,8 @@ if __name__ == '__main__':
     while not rospy.is_shutdown():
         if TWO_SHELF_FINDER.run_once():
             TWO_SHELF_FINDER.publish()
+        else:
+            # TODO Send tf if it's not valid
+            send_tf((TOW_CAR_LENGTH/2.0, 0, 0), "carB/base_link", "car1/base_link")
+            send_tf((-TOW_CAR_LENGTH/2.0, 0, 0), "carB/base_link", "car2/base_link")
         rate.sleep()
