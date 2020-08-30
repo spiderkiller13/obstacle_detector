@@ -56,7 +56,7 @@ class Shelf_finder():
         # Name of this node, anonymous means name will be auto generated.
         rospy.init_node('laser_find_shelf', anonymous=False)
         #----- Subscriber -------# 
-        if self.ROLE == "leader":
+        if ROLE == "leader":
             self.viz_marker = Marker_Manager("obstacle_detector/markers/" + name)
             self.viz_marker.register_marker("corners_"+name, 7, "carB/map", (0,0,255) , 0.1)
             self.viz_marker.register_marker("edges_"+name, 5  , "carB/map", (255,255,0), 0.02)
