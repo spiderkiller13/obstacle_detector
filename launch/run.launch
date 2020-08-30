@@ -58,8 +58,8 @@
     <param name="max_merge_spread"     value="0.2"/>
     <param name="max_circle_radius"    value="0.15"/> <!--0.6 default -->
     <param name="radius_enlargement"   value="0.0"/> <!--0.3 default -->
-    <!-- <param name="frame_id"             value="$(arg robot_name)/base_link"/> -->
-    <param name="frame_id"             value="$(arg obstacle_map)/map"/>
+    <param name="frame_id"             value="$(arg robot_name)/base_link"/>
+    <!-- <param name="frame_id"             value="$(arg obstacle_map)/map"/> -->
     <!-- <remap from="scan" to="/$(arg robot_name)/scan_merged"/> -->
     <remap from="scan" to="/$(arg robot_name)/scan_merged/filtered"/>
   </node>
