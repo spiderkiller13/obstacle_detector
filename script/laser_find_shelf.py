@@ -56,9 +56,14 @@ class Shelf_finder():
         # Name of this node, anonymous means name will be auto generated.
         rospy.init_node('laser_find_shelf', anonymous=False)
         #----- Subscriber -------# 
-        # self.viz_marker = Marker_Manager("obstacle_detector/markers/" + name)
-        # self.viz_marker.register_marker("corners_"+name, 7, ROBOT_NAME+"/map", (0,0,255) , 0.1)
-        # self.viz_marker.register_marker("edges_"+name, 5  , ROBOT_NAME+"/map", (255,255,0), 0.02)
+        if self.ROLE == "leader":
+            self.viz_marker = Marker_Manager("obstacle_detector/markers/" + name)
+            self.viz_marker.register_marker("corners_"+name, 7, "carB/map", (0,0,255) , 0.1)
+            self.viz_marker.register_marker("edges_"+name, 5  , "carB/map", (255,255,0), 0.02)
+        else:
+            self.viz_marker = Marker_Manager("obstacle_detector/markers/" + name)
+            self.viz_marker.register_marker("corners_"+name, 7, ROBOT_NAME+"/map", (0,0,255) , 0.1)
+            self.viz_marker.register_marker("edges_"+name, 5  , ROBOT_NAME+"/map", (255,255,0), 0.02)
 
     def set_mode(self,sheft_length_tolerance, angle_tolerance, max_circle_radius, search_radius):
         '''
@@ -230,7 +235,7 @@ class Shelf_finder():
         '''
         '''
         #---- Update all markers on RVIZ -----# 
-        # self.viz_marker.publish()
+        self.viz_marker.publish()
         pass
     
     def run_once(self, ref_ang):
@@ -248,12 +253,12 @@ class Shelf_finder():
         self.center = self.cal_avg_center(ref_ang)
 
         # Update debug markers
-        #self.viz_marker.update_marker("corners_"+self.name, tuple(self.corner_dict.keys()))
+        self.viz_marker.update_marker("corners_"+self.name, tuple(self.corner_dict.keys()))
         line_list = []
         for corner in self.corner_dict:
             line_list.extend([corner, self.corner_dict[corner].neighbor1, 
                               corner, self.corner_dict[corner].neighbor2])
-        #self.viz_marker.update_marker("edges_"+self.name, line_list)
+        self.viz_marker.update_marker("edges_"+self.name, line_list)
 
         return True
     
@@ -299,7 +304,6 @@ class Two_shelf_finder():
     def run_once(self):
         # Update scan
         if self.scan == None: # No scan data
-            rospy.logerr("No scan data") # TODO tmp 
             return False
         else:
             self.shelf_finder_base.scan = self.scan
@@ -314,7 +318,6 @@ class Two_shelf_finder():
         if tran_xyt != None:
             self.base_link_xyt = tran_xyt
         if self.base_link_xyt == None:
-            rospy.logerr("No tran_xyt") # TODO tmp 
             return False
 
         # Calculate base center
