@@ -397,7 +397,7 @@ if __name__ == '__main__':
             TWO_SHELF_FINDER.publish()
             INIT = True
         elif ROLE == "leader":
-            if INIT == False 
+            if INIT == False :
                 send_tf((TOW_CAR_LENGTH/2.0, 0, 0), "carB/base_link", "car1/base_link")
                 # send_tf((-TOW_CAR_LENGTH/2.0, 0, 0), "carB/base_link", "car2/base_link")
                 rospy.logerr("[laser_finder] NOt init yet")
