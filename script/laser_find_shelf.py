@@ -56,9 +56,9 @@ class Shelf_finder():
         # Name of this node, anonymous means name will be auto generated.
         rospy.init_node('laser_find_shelf', anonymous=False)
         #----- Subscriber -------# 
-        self.viz_marker = Marker_Manager("obstacle_detector/markers/" + name)
-        self.viz_marker.register_marker("corners_"+name, 7, ROBOT_NAME+"/map", (0,0,255) , 0.1)
-        self.viz_marker.register_marker("edges_"+name, 5  , ROBOT_NAME+"/map", (255,255,0), 0.02)
+        # self.viz_marker = Marker_Manager("obstacle_detector/markers/" + name)
+        # self.viz_marker.register_marker("corners_"+name, 7, ROBOT_NAME+"/map", (0,0,255) , 0.1)
+        # self.viz_marker.register_marker("edges_"+name, 5  , ROBOT_NAME+"/map", (255,255,0), 0.02)
 
     def set_mode(self,sheft_length_tolerance, angle_tolerance, max_circle_radius, search_radius):
         '''
@@ -230,9 +230,8 @@ class Shelf_finder():
         '''
         '''
         #---- Update all markers on RVIZ -----# 
-        self.viz_marker.publish()
-        # if self.name == "base":
-        #     send_tf(self.center, ROBOT_NAME+"/map", ROBOT_NAME+"/s_center_laser")
+        # self.viz_marker.publish()
+        pass
     
     def run_once(self, ref_ang):
         '''
@@ -249,12 +248,12 @@ class Shelf_finder():
         self.center = self.cal_avg_center(ref_ang)
 
         # Update debug markers
-        self.viz_marker.update_marker("corners_"+self.name, tuple(self.corner_dict.keys()))
+        #self.viz_marker.update_marker("corners_"+self.name, tuple(self.corner_dict.keys()))
         line_list = []
         for corner in self.corner_dict:
             line_list.extend([corner, self.corner_dict[corner].neighbor1, 
                               corner, self.corner_dict[corner].neighbor2])
-        self.viz_marker.update_marker("edges_"+self.name, line_list)
+        #self.viz_marker.update_marker("edges_"+self.name, line_list)
 
         return True
     
