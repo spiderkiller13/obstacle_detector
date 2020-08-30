@@ -306,7 +306,7 @@ class Two_shelf_finder():
             self.shelf_finder_peer.scan = self.scan
         
         # Update tf 
-        tran_xyt = get_tf(self.tfBuffer, ROBOT_NAME+"/map", ROBOT_NAME+"/base_link")
+        tran_xyt = get_tf(self.tfBuffer, ROBOT_NAME+"/raw/map", ROBOT_NAME+"/raw/base_link", ignore_time = True)
         if tran_xyt != None:
             self.base_link_xyt = tran_xyt
         if self.base_link_xyt == None:
@@ -360,7 +360,6 @@ class Two_shelf_finder():
         # Send tf
         if ROLE == "leader":
             send_tf((TOW_CAR_LENGTH/2.0, 0, theta), "carB/base_link", "car1/base_link")
-        elif ROLE == "follower":
             send_tf((-TOW_CAR_LENGTH/2.0, 0, theta), "carB/base_link", "car2/base_link")
 
 if __name__ == '__main__':
