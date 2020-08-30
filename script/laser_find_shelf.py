@@ -292,6 +292,7 @@ class Two_shelf_finder():
         rospy.Subscriber("raw_obstacles", Obstacles, self.obstacle_cb)
         # Publisher
         self.pub_theta = rospy.Publisher("/"+ ROBOT_NAME +"/theta", Float64, queue_size = 1,latch=False)
+        self.theta = 0.0
     
     def obstacle_cb(self,data):
         '''
@@ -361,15 +362,15 @@ class Two_shelf_finder():
         # send_tf(self.big_car_xyt, ROBOT_NAME+"/map", ROBOT_NAME+"/center_big_car")
         # Get theta1 or theta2
         if ROLE == "leader": # Theta1
-            theta = normalize_angle(self.base_link_xyt[2] - self.shelf_finder_base.center[2])
+            self.theta = normalize_angle(self.base_link_xyt[2] - self.shelf_finder_base.center[2])
         elif ROLE == "follower": # Theta2
-            theta = normalize_angle(self.base_link_xyt[2] - self.shelf_finder_base.center[2] + pi)
-        self.pub_theta.publish(theta)
+            self.theta = normalize_angle(self.base_link_xyt[2] - self.shelf_finder_base.center[2] + pi)
+        self.pub_theta.publish(self.theta)
 
         # Send tf
         if ROLE == "leader":
-            send_tf((TOW_CAR_LENGTH/2.0, 0, theta), "carB/base_link", "car1/base_link")
-            send_tf((-TOW_CAR_LENGTH/2.0, 0, theta), "carB/base_link", "car2/base_link")
+            send_tf((TOW_CAR_LENGTH/2.0, 0, self.theta), "carB/base_link", "car1/base_link")
+            # send_tf((-TOW_CAR_LENGTH/2.0, 0, self.theta+pi), "carB/base_link", "car2/base_link")
 
 if __name__ == '__main__':
     rospy.init_node('laser_find_shelf',anonymous=False)
@@ -389,12 +390,18 @@ if __name__ == '__main__':
 
     SHELF_LEN_DIAGONAL = SHELF_LEN * sqrt(2)
     TWO_SHELF_FINDER = Two_shelf_finder()
+    INIT = False
     rate = rospy.Rate(FREQUENCY)
     while not rospy.is_shutdown():
         if TWO_SHELF_FINDER.run_once():
             TWO_SHELF_FINDER.publish()
-        else:
-            # TODO Send tf if it's not valid
-            send_tf((TOW_CAR_LENGTH/2.0, 0, 0), "carB/base_link", "car1/base_link")
-            send_tf((-TOW_CAR_LENGTH/2.0, 0, 0), "carB/base_link", "car2/base_link")
+            INIT = True
+        elif ROLE == "leader":
+            if INIT == False 
+                send_tf((TOW_CAR_LENGTH/2.0, 0, 0), "carB/base_link", "car1/base_link")
+                # send_tf((-TOW_CAR_LENGTH/2.0, 0, 0), "carB/base_link", "car2/base_link")
+                rospy.logerr("[laser_finder] NOt init yet")
+            else:
+                send_tf((TOW_CAR_LENGTH/2.0, 0, TWO_SHELF_FINDER.theta), "carB/base_link", "car1/base_link")
+                # send_tf((-TOW_CAR_LENGTH/2.0, 0, self.theta), "carB/base_link", "car2/base_link")
         rate.sleep()
