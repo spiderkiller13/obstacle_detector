@@ -356,7 +356,10 @@ class Two_shelf_finder():
         elif ROLE == "follower": # Theta2
             theta = normalize_angle(self.base_link_xyt[2] - self.shelf_finder_base.center[2] + pi)
         self.pub_theta.publish(theta)
-        # rospy.loginfo("[shelf_finder]" + str(theta))
+
+        # Send tf
+        if ROLE == "leader":
+            send_tf((TOW_CAR_LENGTH/2.0, 0, theta), "carB/base_link", "car1/base_link")
 
 if __name__ == '__main__':
     rospy.init_node('laser_find_shelf',anonymous=False)
