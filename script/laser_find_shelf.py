@@ -58,8 +58,10 @@ class Shelf_finder():
         #----- Subscriber -------# 
         if ROLE == "leader":
             self.viz_marker = Marker_Manager("obstacle_detector/markers/" + name)
-            self.viz_marker.register_marker("corners_"+name, 7, "carB/map", (0,0,255) , 0.1)
-            self.viz_marker.register_marker("edges_"+name, 5  , "carB/map", (255,255,0), 0.02)
+            self.viz_marker.register_marker("corners_"+name, 7, "car1/base_link", (0,0,255) , 0.1)
+            self.viz_marker.register_marker("edges_"+name, 5  , "car1/base_link", (255,255,0), 0.02)
+            # self.viz_marker.register_marker("corners_"+name, 7, "car1/base_link", (0,0,255) , 0.1) 
+            # self.viz_marker.register_marker("edges_"+name, 5  , "car1/base_link", (255,255,0), 0.02)
         else:
             self.viz_marker = Marker_Manager("obstacle_detector/markers/" + name)
             self.viz_marker.register_marker("corners_"+name, 7, ROBOT_NAME+"/map", (0,0,255) , 0.1)
@@ -242,11 +244,9 @@ class Shelf_finder():
         '''
         return True: Allow publish
         '''
-        try:
-            self.corner_dict = self.cal_corner(self.scan, self.search_center) # , self.center[2])
-        except TypeError:
-            self.corner_dict = self.cal_corner(self.scan, self.search_center) # , None)
+        self.corner_dict = self.cal_corner(self.scan, self.search_center)
         if self.corner_dict == {}:
+            # print ("Can't find any corner")
             return False # Can't find any corner
 
         # Get average center(x,y)
@@ -310,19 +310,8 @@ class Two_shelf_finder():
             self.shelf_finder_base.scan = self.scan
             self.shelf_finder_peer.scan = self.scan
         
-        # Update tf 
-        if ROLE == "leader":
-            tran_xyt = get_tf(self.tfBuffer, "carB/map","car1/base_link", ignore_time = True)
-        else:
-            tran_xyt = get_tf(self.tfBuffer, ROBOT_NAME+"/map", ROBOT_NAME+"/base_link", ignore_time = True)
-        
-        if tran_xyt != None:
-            self.base_link_xyt = tran_xyt
-        if self.base_link_xyt == None:
-            return False
-
         # Calculate base center
-        self.shelf_finder_base.search_center = self.base_link_xyt[:2]
+        self.shelf_finder_base.search_center = (0,0)
         if self.shelf_finder_base.run_once(self.big_car_xyt[2]):
             # Publish base shelf
             self.shelf_finder_base.publish()
@@ -331,8 +320,7 @@ class Two_shelf_finder():
             marker_tmp_list = []
             for p_tem in self.direction_list:
                 theta = self.shelf_finder_base.center[2]
-                (x, y) = vec_trans_coordinate(p_tem, (self.base_link_xyt[0], 
-                                                      self.base_link_xyt[1], theta))
+                (x, y) = vec_trans_coordinate(p_tem, (0, 0, theta))
                 self.shelf_finder_peer.search_center = (x,y)
                 marker_tmp_list.append((x,y))
                 
@@ -361,14 +349,14 @@ class Two_shelf_finder():
     def publish(self):
         # Get theta1 or theta2
         if ROLE == "leader": # Theta1
-            self.theta = normalize_angle(self.base_link_xyt[2] - self.shelf_finder_base.center[2])
+            self.theta = normalize_angle(-self.shelf_finder_base.center[2]) 
         elif ROLE == "follower": # Theta2
-            self.theta = normalize_angle(self.base_link_xyt[2] - self.shelf_finder_base.center[2] + pi)
+            self.theta = normalize_angle(-self.shelf_finder_base.center[2] + pi)
         self.pub_theta.publish(self.theta)
 
         # Send tf
         if ROLE == "leader":
-            send_tf((TOW_CAR_LENGTH/2.0, 0, self.theta), "carB/base_link", "car1/base_link")
+           send_tf((TOW_CAR_LENGTH/2.0, 0, self.theta), "carB/base_link", "car1/base_link")
 
 if __name__ == '__main__':
     rospy.init_node('laser_find_shelf',anonymous=False)
