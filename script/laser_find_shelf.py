@@ -359,7 +359,6 @@ class Two_shelf_finder():
         return False
     
     def publish(self):
-        # send_tf(self.big_car_xyt, ROBOT_NAME+"/map", ROBOT_NAME+"/center_big_car")
         # Get theta1 or theta2
         if ROLE == "leader": # Theta1
             self.theta = normalize_angle(self.base_link_xyt[2] - self.shelf_finder_base.center[2])
@@ -370,7 +369,6 @@ class Two_shelf_finder():
         # Send tf
         if ROLE == "leader":
             send_tf((TOW_CAR_LENGTH/2.0, 0, self.theta), "carB/base_link", "car1/base_link")
-            # send_tf((-TOW_CAR_LENGTH/2.0, 0, self.theta+pi), "carB/base_link", "car2/base_link")
 
 if __name__ == '__main__':
     rospy.init_node('laser_find_shelf',anonymous=False)
@@ -399,9 +397,7 @@ if __name__ == '__main__':
         elif ROLE == "leader":
             if INIT == False :
                 send_tf((TOW_CAR_LENGTH/2.0, 0, 0), "carB/base_link", "car1/base_link")
-                # send_tf((-TOW_CAR_LENGTH/2.0, 0, 0), "carB/base_link", "car2/base_link")
                 rospy.logerr("[laser_finder] NOt init yet")
             else:
                 send_tf((TOW_CAR_LENGTH/2.0, 0, TWO_SHELF_FINDER.theta), "carB/base_link", "car1/base_link")
-                # send_tf((-TOW_CAR_LENGTH/2.0, 0, self.theta), "carB/base_link", "car2/base_link")
         rate.sleep()
